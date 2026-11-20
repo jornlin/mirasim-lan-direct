@@ -105,6 +105,18 @@ If that fails: check the SSH key (`BatchMode` is used), the host's port, and
 whether `~/.mirasim/run/local-*.token` exists. As a fallback, copy the JSON
 output to a file and use `mld init --pair pair.json`.
 
+## Collaboration mode won't activate
+
+- Direct mode bypasses the gateway; collaboration identity/presence lives on the
+  gateway/account session. Switch this space to gateway mode:
+  `mld mode <node|label> gateway` then `mld patch --force --restart`.
+- Do not run a second mirasim server on a host that is already a collab space.
+  An SSH/remote server staged in `~/.mirasim-remote` defaults to the same
+  `MIRASIM_HOME` and competes for the space program, rendezvous registration
+  and the space key files. Stop it and restart the app; the log lines to look
+  for are `space program: cannot listen on 127.0.0.1:4963` and a rendezvous that
+  stays `off`.
+
 ## “可连接的设备” keeps growing
 
 An older client patch authenticated with the shared token but sent no
