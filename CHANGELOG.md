@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.5.0 — 2026-11-21
+
+- Member mode is hybrid: the cloud `gatewayUrl` + g2 session are kept; chat,
+  presence, task dispatch and member administration use the gateway (which
+  supplies the requester credential agent turns need), while sessions,
+  terminals, files and snapshots use the LAN with the g2 grant. No shared
+  token is embedded.
+- `mld member <node>` no longer needs a grant file; the client uses the cloud
+  gateway session automatically. An explicit `--grant/--grant-file` still
+  works for diagnostics.
+- Add `scripts/host-g2-auth.py`: optional host verifier that accepts a g2
+  gateway session as a direct account grant (`kind=gateway`, `aud` = host
+  cloud node id, `sub`, `exp`). The first enrollment stores a normal
+  `via=account` device; later reconnects use device keys (`via=known`).
+  Includes backup/restore and a syntax check.
+- Document the host patch, its update lifecycle and revocation model.
+
+## 0.4.0 — 2026-11-21
+
+- Member mode prototype: automatic cloud gateway session as the direct grant,
+  `managed`/`remoteByChoice` flags, and JWT validation for explicit grants.
+
 ## 0.3.0 — 2026-11-20
 
 - Member-grant mode: `mld member <node> --grant-file <jwt>` uses a

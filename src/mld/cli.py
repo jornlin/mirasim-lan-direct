@@ -67,10 +67,11 @@ def _resolve_targets(cfg: dict) -> Tuple[List[patch.Target], bool]:
                 changed = True
         hybrid = mode == "hybrid"
         grant = entry.get("grant") or ""
+        member = bool(entry.get("member"))
         out.append(patch.Target(entry["nodeId"], origin, entry["token"], entry["e2e"],
                                entry.get("installId") or "",
-                               bool(entry.get("collab")) or hybrid or bool(grant),
-                               hybrid, grant))
+                               bool(entry.get("collab")) or hybrid or bool(grant) or member,
+                               hybrid, grant, member))
     if not out and not (cfg.get("targets") or []):
         raise ValueError("no targets configured; run `mld init`")
     return out, changed
@@ -389,6 +390,8 @@ def cmd_check(args) -> int:
         up = hostinfo.reachable(t.origin)
         ok = ok and up
         label = modes.get(t.node_id, "direct")
+        if t.member and not t.grant:
+            label = "member (cloud grant)"
         if t.grant:
             try:
                 claims = _grant_claims(t.grant)
@@ -500,28 +503,32 @@ def cmd_member(args) -> int:
     jwt = args.grant
     if not jwt and args.grant_file:
         jwt = Path(args.grant_file).expanduser().read_text(encoding="utf-8").strip()
-    if not jwt:
-        raise SystemExit("pass --grant <jwt> or --grant-file <path>")
-    try:
-        claims = _grant_claims(jwt)
-    except ValueError as exc:
-        raise SystemExit(str(exc))
-    sub = claims.get("sub")
-    aud = claims.get("aud")
-    exp = claims.get("exp")
-    if not isinstance(sub, str) or not sub:
-        raise SystemExit("grant has no sub (member account)")
-    if aud != match["nodeId"]:
-        raise SystemExit("grant aud %r does not match node %s" % (aud, match["nodeId"]))
-    if not isinstance(exp, (int, float)) or exp <= time.time():
-        raise SystemExit("grant is missing exp or already expired; obtain a fresh one")
-    match["grant"] = jwt
+    claims = {}
+    if jwt:
+        try:
+            claims = _grant_claims(jwt)
+        except ValueError as exc:
+            raise SystemExit(str(exc))
+        sub = claims.get("sub")
+        aud = claims.get("aud")
+        exp = claims.get("exp")
+        if not isinstance(sub, str) or not sub:
+            raise SystemExit("grant has no sub (member account)")
+        if aud != match["nodeId"]:
+            raise SystemExit("grant aud %r does not match node %s" % (aud, match["nodeId"]))
+        if not isinstance(exp, (int, float)) or exp <= time.time():
+            raise SystemExit("grant is missing exp or already expired; obtain a fresh one")
+        match["grant"] = jwt
+    else:
+        match.pop("grant", None)
+        sub = None
+    match["member"] = True
     match["token"] = ""
     match["mode"] = "direct"
     match["collab"] = True
     _save_cfg(cfg)
     ssh_target = (cfg.get("ssh") or {}).get("target")
-    if ssh_target:
+    if ssh_target and sub:
         try:
             shared = hostinfo.shared_accounts(ssh_target)
             if sub not in shared:
@@ -529,9 +536,13 @@ def cmd_member(args) -> int:
                       "join the space from that account first" % sub)
         except Exception as exc:
             print("warning: could not check host shared accounts: %s" % exc)
-    when = datetime.fromtimestamp(exp, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    print("%s: member grant for %s (expires %s)" %
-          (match.get("label") or match["nodeId"], sub, when))
+    if jwt:
+        when = datetime.fromtimestamp(exp, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        print("%s: member grant for %s (expires %s)" %
+              (match.get("label") or match["nodeId"], sub, when))
+    else:
+        print("%s: member mode (uses the cloud gateway session at runtime)" %
+              (match.get("label") or match["nodeId"]))
     if args.stage:
         print("staged; run: mld patch --force --restart")
         return 0
@@ -622,7 +633,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     mb = sub.add_parser("member", help="use a member's account grant for LAN direct (no shared token)")
     mb.add_argument("target", help="node id or label")
-    mb.add_argument("--grant", help="account grant JWT (sub=member account, aud=node id)")
+    mb.add_argument("--grant", help="optional explicit account grant JWT; by default the cloud gateway session is used")
     mb.add_argument("--grant-file", help="read the grant JWT from a file")
     mb.add_argument("--stage", action="store_true", help="only write the config; do not patch/restart")
     mb.set_defaults(func=cmd_member)

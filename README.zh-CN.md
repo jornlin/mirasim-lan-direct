@@ -132,44 +132,47 @@ mld mode <node-id-或-label> gateway      # 仅中继
 空间仍需保持云附加（cloud attach），且 gateway 半必须能认证（目标保留云 grant）。
 gateway 半认证失败时，切回 `gateway` 模式。
 
-### 哪些设备可以用 direct/hybrid
+### 传统 direct/hybrid：只适合 owner 自己的设备
 
-这两种模式都会把宿主的共享 token 写进补丁，并用局域网 legacy 连接，角色是
-`role=admin`。局域网连接没有 gateway viewer 身份，宿主的聊天身份会回落到**宿主自己
-登录的 owner 账号**。因此只应在**与宿主同一账号**的设备上使用。
+这两种模式会把宿主的共享 token 写进补丁，用局域网 legacy 连接，角色是 `role=admin`。
+局域网连接没有 gateway viewer 身份，宿主的聊天身份会回落到**宿主自己登录的 owner
+账号**。只应在**与宿主同一账号**的设备上使用，且不要分发共享 token。
 
-**不要**把补丁后的 App、配置或共享 token 分发给其他成员：他们会以 owner 身份出现，
-并拿到管理员级的数据访问权限。其他成员应继续使用官方 gateway/云端客户端；你的局域网
-补丁不影响他们，宿主可以同时服务两边。Hybrid 的聊天身份走网关是正确的，但它的局域网
-数据链路仍带共享 token，所以同样只适合 owner 自己的设备。
+### 成员用自己的账号（member 模式）
 
-### 成员用自己的账号（grant 模式）
-
-宿主在局域网直连上也接受平台签名的**账号 grant**：
-
-```js
-Flo: grant -> accountId = claims.sub（必须是宿主账号或共享账号）
-```
-
-如果成员能拿到这样的 grant（`sub` = 成员账号，`aud` = 宿主 nodeId），就用它替代
-共享 token：
+`member` 模式给共享空间里的其他成员使用，不使用共享 token：
 
 ```sh
-mld member <node-id-或-label> --grant-file member.jwt   # 或 --grant <jwt>
-mld check                                               # 显示 sub 与过期时间
+mld member <node-id-或-label>        # 不需要 grant 文件
+mld check                            # member (cloud grant)
 ```
 
-目标保留 `host`/`e2e`/`grant`，去掉 `token`/`gatewayUrl`，并继续带远程/托管渲染标志。
-宿主会记录 `via=account`，聊天、presence 和角色都是成员本人，而不是 owner。
+目标保留云端 `gatewayUrl` 和 `grant`，去掉 `token`，运行双链路混合模式：
 
-前提：
+- **gateway**：聊天/频道、presence、任务派发和成员管理；relay 会补上 agent
+  轮次需要的请求人凭证；
+- **局域网直连**：会话、终端、文件、快照；用成员的 g2 gateway session 作为账号 grant。
 
-- 成员账号必须在宿主的 `mirachannelSharedAccounts` 里（先加入空间）；
-- grant 必须来自 Mirasim 的账号/设备配对或云端流程，工具不负责签发。桌面云端路径
-  目前只给 gateway session，不给 account grant；拿到 grant 是剩余要打通的一步。
-  在此之前，其他成员继续用官方 gateway 客户端。
+第一次直连需要宿主侧的一个小验证补丁（宿主直连监听默认只认 g1 enroll grant）：
 
-在成员设备上可以只读探测本机云 RPC（token 与邮箱会脱敏）：
+```sh
+# 在宿主（拥有这个空间的那台电脑）上执行
+python3 scripts/host-g2-auth.py --apply
+# 回滚：
+python3 scripts/host-g2-auth.py --restore
+```
+
+第一次直连成功后，宿主会保存一条普通的 `via=account` 设备，带成员的 `accountId`；
+后续重连走设备密钥（`via=known`），不再依赖 10 分钟 session。宿主 App 升级会覆盖
+`server-main.cjs`，升级后需要重新 `--apply`。详见
+[docs/host-g2-auth.md](docs/host-g2-auth.md)。
+
+gateway 半无法认证时，改用官方 `gateway` 模式。
+
+### 查找成员 grant（诊断）
+
+桌面客户端通常会自动带上 g2 session。要在成员设备上查看本机云 RPC 返回什么（token
+与邮箱会脱敏）：
 
 ```sh
 node scripts/probe-cloud.mjs
@@ -177,9 +180,8 @@ node scripts/probe-cloud.mjs
 ELECTRON_RUN_AS_NODE=1 /Applications/Mirasim.app/Contents/MacOS/Mirasim scripts/probe-cloud.mjs
 ```
 
-找 claims 里带 `sub`（成员账号）、`aud`（宿主 nodeId）、`exp` 的 token；存成
-`member.jwt` 后交给 `mld member`。如果只看到不透明的 gateway session，说明云端没有向
-桌面客户端暴露 account grant，下一步只能做宿主侧成员认证桥。
+找 claims 里带 `sub`（成员账号）、`aud`（宿主 nodeId）、`exp` 的 token。
+`mld member <node> --grant-file member.jwt` 仍可显式指定 grant；正常路径不需要文件。
 
 ### 直连协作开关（旧）
 

@@ -28,7 +28,7 @@ from typing import Iterable, List, Sequence
 from .asar import Asar
 
 MARK_PREFIX = "mirasim-lan-direct:"
-PATCH_REVISION = 15   # bump when the set of rewrite points changes
+PATCH_REVISION = 17   # bump when the set of rewrite points changes
 LEGACY_MARKERS = ("mirasim-lan-patch:", "mirasim-lan-patch")
 
 # function <name>(<param>){const <var>=<param>.gatewayUrl??"";return{mode:"remote",host:""
@@ -52,6 +52,7 @@ class Target:
     collab: bool = False  # enable the collab presence gate for this direct target
     hybrid: bool = False  # direct data + gateway control/presence
     grant: str = ""       # platform account grant: identify as this member, no shared token
+    member: bool = False  # use the cloud gateway session as the direct account grant
 
     def as_config(self) -> dict:
         cfg = {"o": self.origin, "t": self.token, "k": self.e2e}
@@ -59,7 +60,9 @@ class Target:
             cfg["i"] = self.install_id
         if self.grant:
             cfg["g"] = self.grant
-        if self.collab or self.hybrid or self.grant:
+        if self.member:
+            cfg["m"] = 1
+        if self.collab or self.hybrid or self.grant or self.member:
             cfg["c"] = 1
         if self.hybrid:
             cfg["h"] = 1
@@ -76,7 +79,7 @@ class PatchResult:
 def target_hash(targets: Sequence[Target]) -> str:
     canonical = json.dumps(
         {"rev": PATCH_REVISION,
-         "targets": sorted((t.node_id, t.origin, t.token, t.e2e, t.install_id, t.collab, t.hybrid, t.grant)
+         "targets": sorted((t.node_id, t.origin, t.token, t.e2e, t.install_id, t.collab, t.hybrid, t.grant, t.member)
                            for t in targets)},
         separators=(",", ":"),
     )
@@ -175,16 +178,18 @@ def _new_function(name: str, param: str, targets: Sequence[Target],
     code = (
         f'function {name}({param}){{const {tbl}={table};const {ent}={tbl}[{param}.nodeId];'
         f'const h={ent}&&{ent}.h;'
-        f'const g={ent}&&{ent}.g;'
+        f'const g={ent}&&{ent}.g;const m={ent}&&{ent}.m;'
         f'if({ent}&&{ent}.c)globalThis.__mldCollab=true;'
         f'return{{mode:"remote",host:{ent}?{ent}.o:({param}.host??""),'
-        f'token:g?"":({ent}?{ent}.t:({param}.token??"")),'
+        f'token:(g||m)?"":({ent}?{ent}.t:({param}.token??"")),'
         f'...((!{ent}||h)?({grant_fn}({param})&&!{param}.token?{{grant:{param}.grant}}:{{}}):{{}}),'
         f'...g?{{grant:g}}:{{}},'
+        f'...m&&!g&&{param}.grant?{{grant:{param}.grant}}:{{}},'
         f'...{param}.grantAt>=0?{{grantAt:{param}.grantAt}}:{{}},'
-        f'...((!{ent}||h)&&{param}.gatewayUrl)?{{gatewayUrl:{param}.gatewayUrl}}:{{}},'
+        f'...((!{ent}||h||m)&&{param}.gatewayUrl)?{{gatewayUrl:{param}.gatewayUrl}}:{{}},'
         f'...{ent}&&{ent}.c?{{collab:!0}}:{{}},'
-        f'...h?{{hybrid:!0}}:{{}},'
+        f'...m?{{member:!0}}:{{}},'
+        f'...(h||m)?{{hybrid:!0}}:{{}},'
         f'nodeId:{param}.nodeId,e2e:{ent}?{ent}.k:{param}.e2e,'
         f'installId:{ent}?{ent}.i:({param}.installId??""),'
         f'rendezvous:{param}.rendezvous||{rend},...{v2_fn}({param})'
@@ -236,7 +241,7 @@ def patch_install_id(asar: Asar) -> List[str]:
     needle = ("nodeId:%s.nodeId||void 0," % param).encode()
     if span.count(needle) != 1:
         raise PatchError("could not find the nodeId field in the target pass-through function")
-    span = span.replace(needle, needle + ("installId:%s.installId||void 0,collab:%s.collab||void 0," % (param, param)).encode())
+    span = span.replace(needle, needle + ("installId:%s.installId||void 0,collab:%s.collab||void 0,member:%s.member||void 0," % (param, param, param)).encode())
     asar.contents[path] = data[:start] + span + data[end:]
     return [path]
 
@@ -308,7 +313,7 @@ def patch_hybrid_transport(asar: Asar) -> List[str]:
     old_grant = b'grant:t.grant,e2e:t.e2e'
     if old_grant not in data:
         raise PatchError("could not find the mirachannel grant field")
-    data = data.replace(old_grant, b'grant:(t.gatewayUrl&&t.host)?void 0:t.grant,e2e:t.e2e', 1)
+    data = data.replace(old_grant, b'grant:(t.gatewayUrl&&t.host&&!t.member)?void 0:t.grant,e2e:t.e2e', 1)
     m = re.search(rb'createV1:([A-Za-z_$][\w$]*)\}\)\}', data)
     if not m:
         raise PatchError("could not find the mirachannel client call end")

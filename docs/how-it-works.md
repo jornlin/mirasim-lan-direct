@@ -170,31 +170,36 @@ which carries their own viewer identity.
 
 ## Member grants
 
-The host's `Flo` authenticator also accepts a platform-signed account grant:
-
-```js
-grant -> verify with enrollKey.pub
-      -> aud == nodeId
-      -> sub == host account or sharedAccounts[]
-      -> via "account", accountId = sub
-```
-
-The member then appears through `wn`/`identify` as their own account with the
-shared space's role, not as the host owner. A target can carry such a grant:
+A member client keeps the cloud entry's **g2 gateway session** as a direct
+account grant:
 
 ```js
 {
   mode: "remote", host: "http://192.168.1.50:4970",
-  token: "", grant: "<jwt>", e2e: "<host key>",
-  nodeId: "...", collab: true
+  gatewayUrl: "wss://relay.mirasim.ai/v2/gateway/ws",
+  token: "", grant: "<g2 session>", e2e: "<host key>",
+  nodeId: "...", collab: true, hybrid: true, member: true
 }
 ```
 
-The direct client still sends `clientHello {remoteByChoice:true}` and the
-composite reports `managed:true`, so the renderer uses the remote collaboration
-layout. The grant must be issued by Mirasim's account/device pairing or cloud
-flow; the tool does not mint it. `mld member` only validates its JWT shape,
-`aud` and `exp`.
+The composite then uses two links:
+
+- **gateway** for chat/channels, presence, task dispatch and member
+  administration. The relay supplies the requester credential that agent turns
+  need; this is why member mode is hybrid rather than a pure direct link.
+- **LAN** for sessions, terminals, files and snapshots, authenticated with the
+  g2 grant.
+
+The shipped host accepts only g1 enroll grants on the direct listener, so the
+host needs `scripts/host-g2-auth.py`. It verifies the g2 signature with the
+shipped g2 public key and requires `kind: "gateway"`, `aud` = the host's cloud
+node id, a `sub`, and an unexpired `exp`; it then returns
+`via: "account", accountId: sub`.
+
+The first successful direct connection enrolls a normal account device:
+`devices.json` stores `via: "account"` and `accountId`; later reconnects use
+`via: "known"` device keys and do not depend on the 10-minute session expiry.
+`wn`/`identify` therefore return the member, not the host owner.
 
 ## Backups and rebuild sources
 

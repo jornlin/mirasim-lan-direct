@@ -184,53 +184,55 @@ The space must still be cloud-attached and the gateway half must authenticate
 (the target keeps its cloud grant). If the gateway half cannot authenticate,
 switch back to `gateway` mode.
 
-### Who can use direct/hybrid
+### Legacy direct/hybrid: owner devices only
 
-Both modes embed the host's shared token and open a legacy LAN connection with
-`role=admin`. A LAN connection has no gateway viewer identity, so the host's
-chat identity falls back to its **own signed-in owner account**. Use these
-modes only on devices signed into the **same account as the host**.
+The legacy modes embed the host's shared token and open a LAN connection with
+`role=admin`. That connection has no gateway viewer identity, so the host's
+chat identity falls back to its **own signed-in owner account**. Use them only
+on devices signed into the **same account as the host**, and never distribute
+the shared token.
 
-Do **not** distribute the patched app, its config, or the shared token to other
-members: they would act as the owner and get admin-level data access. Other
-members should keep using the official gateway/cloud client; your LAN patch
-does not affect them, and the host serves both at once. Hybrid fixes the chat
-identity through its gateway link but its LAN data link still carries the
-shared token, so it is also owner-device-only.
+### Members with their own account (member mode)
 
-### Members with their own account (grant mode)
-
-The host also accepts a platform-signed **account grant** on a direct LAN
-connection:
-
-```js
-Flo: grant -> accountId = claims.sub (must be the host account or a shared account)
-```
-
-If a member can obtain such a grant (`sub` = their account, `aud` = the host's
-node id), configure it instead of the shared token:
+`member` mode is for other people in a shared space. It does not use the shared
+token:
 
 ```sh
-mld member <node-id-or-label> --grant-file member.jwt   # or --grant <jwt>
-mld check                                               # shows sub + expiry
+mld member <node-id-or-label>        # no grant file needed
+mld check                            # member (cloud grant)
 ```
 
-The target keeps `host`/`e2e`/`grant`, drops `token`/`gatewayUrl`, and still
-gets the remote/managed renderer flags. The host records `via=account`, so
-chat, presence and role are the member's own, not the owner's.
+The target keeps the cloud `gatewayUrl` and `grant`, drops `token`, and runs as
+a two-link hybrid:
 
-Requirements:
+- **gateway** carries chat/channel, presence, task dispatch and member
+  administration — the relay supplies the requester credential that agent
+  turns need;
+- **LAN direct** carries sessions, terminals, files and snapshots, using the
+  member's g2 gateway session as the account grant.
 
-- the member's account must be in the host's `mirachannelSharedAccounts`
-  (join the space first);
-- the grant must come from Mirasim's account/device pairing or cloud flow — the
-  tool does not mint it. The desktop cloud path currently exposes a gateway
-  session, not an account grant; obtaining the grant is the remaining
-  integration step. Until then, other members should use the official gateway
-  client.
+First enrollment needs a small host-side verifier (the host normally accepts
+only g1 enroll grants on its direct listener):
 
-On a member device, inspect the local cloud RPC (read-only; tokens and email
-are redacted):
+```sh
+# on the host (the computer that owns the space)
+python3 scripts/host-g2-auth.py --apply
+# rollback:
+python3 scripts/host-g2-auth.py --restore
+```
+
+After the first successful direct connection the host stores a normal
+`via=account` device with the member's `accountId`; later reconnects use the
+device keys (`via=known`) and do not need the short-lived session again.
+An app update replaces `server-main.cjs`, so re-apply the host patch after
+updating Mirasim. See [docs/host-g2-auth.md](docs/host-g2-auth.md).
+
+If the gateway half cannot authenticate, use official `gateway` mode instead.
+
+### Finding a member grant (diagnostic)
+
+The desktop client normally supplies the g2 session automatically. To inspect
+what the local cloud RPC returns on a member device (tokens/email redacted):
 
 ```sh
 node scripts/probe-cloud.mjs
@@ -238,11 +240,9 @@ node scripts/probe-cloud.mjs
 ELECTRON_RUN_AS_NODE=1 /Applications/Mirasim.app/Contents/MacOS/Mirasim scripts/probe-cloud.mjs
 ```
 
-Look for a token whose claims contain `sub` (the member account), `aud` (the
-host node id) and `exp`. Save it as `member.jwt` and pass it to `mld member`.
-If only an opaque gateway session appears, the cloud is not exposing an
-account grant to the desktop client; the host-side member bridge is the
-remaining option.
+Look for claims with `sub` (member account), `aud` (host node id) and `exp`.
+`mld member <node> --grant-file member.jwt` can still pin an explicit grant if
+you have one; the normal path needs no file.
 
 ### Direct collab gate (legacy)
 

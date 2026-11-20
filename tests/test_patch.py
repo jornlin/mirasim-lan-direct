@@ -43,7 +43,7 @@ class PatchTests(unittest.TestCase):
         self.assertIn("t.gatewayUrl&&!t.host&&t.nodeId", js)
         self.assertIn("client:HYB(t,e,Ss({host:t.host", js)
         self.assertIn("function HYB(", js)
-        self.assertIn("grant:(t.gatewayUrl&&t.host)?void 0:t.grant", js)
+        self.assertIn("grant:(t.gatewayUrl&&t.host&&!t.member)?void 0:t.grant", js)
 
     def test_collab_gate(self):
         changed = patch.patch_collab_gate(self.a)
@@ -182,6 +182,37 @@ class PatchTests(unittest.TestCase):
         self.assertIsNone(out["gateway"])
         self.assertTrue(out["collab"])
         self.assertEqual(out["e2e"], "e2e456")
+
+    @unittest.skipUnless(shutil.which("node"), "node not available")
+    def test_member_uses_cloud_gateway_session(self):
+        # Member mode has no stored token/grant: the cloud directory's gateway
+        # session becomes the direct grant, and gatewayUrl is removed.
+        target = patch.Target("pc-test", "http://10.0.0.5:4939", "", "e2e456",
+                              "mld-test", True, False, "", True)
+        patch.patch_js(self.a, [target])
+        js = self.a.get("/dist/renderer/assets/default-space.js").decode()
+        start = js.index("function L(")
+        end = js.index("/*mirasim-lan-direct:")
+        fn = js[start:end]
+        script = (
+            'const M="wss://rendezvous.example/x";'
+            "function K(e){return !!e.grant}function N(e){return {}}"
+            + fn
+            + "\nconst t=L({nodeId:'pc-test',gatewayUrl:'wss://relay.example',"
+              "grant:'gateway-session',token:'shared-token'});"
+              "console.log(JSON.stringify({token:t.token,grant:t.grant,"
+              "gateway:t.gatewayUrl??null,collab:t.collab===true,hybrid:t.hybrid===true,member:t.member===true,host:t.host}));"
+        )
+        proc = subprocess.run(["node", "-e", script], capture_output=True, text=True)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        out = json.loads(proc.stdout)
+        self.assertEqual(out["token"], "")
+        self.assertEqual(out["grant"], "gateway-session")
+        self.assertEqual(out["gateway"], "wss://relay.example")
+        self.assertTrue(out["collab"])
+        self.assertTrue(out["hybrid"])
+        self.assertTrue(out["member"])
+        self.assertEqual(out["host"], "http://10.0.0.5:4939")
 
     @unittest.skipUnless(shutil.which("node"), "node not available")
     def test_patched_function_behaviour(self):
