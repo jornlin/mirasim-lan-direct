@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.1 — 2026-11-21
+
+- `mld check` now verifies the optional host g2/role verifier over the
+  configured SSH target and prints `host auth: ...` for member targets.
+- `mld member` warns when the host verifier is missing.
+
 ## 0.6.0 — 2026-11-21
 
 - `mld init --member` creates a member target from node/host/e2e only; it does

@@ -87,6 +87,28 @@ def _fetch_once(ssh_target: str, port: int, timeout: int) -> dict:
     return pair
 
 
+def host_patch_status(ssh_target: str, timeout: int = 15) -> dict:
+    """Check the optional host g2/role verifier markers in server-main.cjs."""
+    if not ssh_target:
+        return {}
+    snippet = (
+        'python3 - <<"PY"\n'
+        'import json,os\n'
+        'p="/Applications/Mirasim.app/Contents/Resources/server-main.cjs"\n'
+        'try:\n'
+        ' s=open(p,encoding="utf-8",errors="replace").read()\n'
+        ' print(json.dumps({"g2":"mld-g2-auth" in s,"role":"mld-member-role" in s}))\n'
+        'except Exception as e:\n'
+        ' print(json.dumps({"error":str(e)}))\n'
+        'PY'
+    )
+    proc = _ssh(ssh_target, snippet, timeout)
+    try:
+        return json.loads(proc.stdout.strip() or "{}")
+    except ValueError:
+        return {"error": (proc.stderr or proc.stdout).strip()[:200]}
+
+
 def shared_accounts(ssh_target: str, timeout: int = 15) -> List[str]:
     """Read the host's mirachannelSharedAccounts setting (member account ids)."""
     if not ssh_target:

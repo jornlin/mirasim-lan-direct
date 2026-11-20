@@ -122,7 +122,9 @@ output to a file and use `mld init --pair pair.json`.
   g2 session: the host verifier is missing/stale, or the g2 public key/`aud`
   check is wrong. Re-apply `scripts/host-g2-auth.py`; the expected claim is
   `kind=gateway`, `aud=<host cloud node id>`, `sub=<member account>`.
-- Check `mld check`: a member target prints `member (cloud grant)`.
+- Check `mld check`: a member target prints `member (cloud grant)` and, when
+  SSH is configured, `host auth: member g2/role verifier present`. A missing
+  line or MISSING means run `scripts/host-g2-auth.py --apply` on the host.
 - Host logs should show `via=grant`/`via=known ... remote=10.x` for the member's
   data link and `via=gateway` for chat. `via=legacy` means the shared-token
   target was used instead of member mode.

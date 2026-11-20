@@ -415,6 +415,16 @@ def cmd_check(args) -> int:
                 label = "member grant"
         print("target:     %s -> %s  %s [%s]" %
               (t.node_id, t.origin, "reachable" if up else "UNREACHABLE", label))
+    ssh_target = (cfg.get("ssh") or {}).get("target")
+    if ssh_target and any(t.member for t in targets):
+        try:
+            hp = hostinfo.host_patch_status(ssh_target)
+            if hp.get("g2") and hp.get("role"):
+                print("host auth:  member g2/role verifier present")
+            else:
+                print("host auth:  MISSING member verifier; run scripts/host-g2-auth.py --apply on the host")
+        except Exception as exc:
+            print("host auth:  could not check (%s)" % exc)
     print("agent:      %s" % agent.status())
 
     if current is not None and _healthy(current, targets):
@@ -549,6 +559,14 @@ def cmd_member(args) -> int:
                       "join the space from that account first" % sub)
         except Exception as exc:
             print("warning: could not check host shared accounts: %s" % exc)
+    if ssh_target:
+        try:
+            hp = hostinfo.host_patch_status(ssh_target)
+            if not (hp.get("g2") and hp.get("role")):
+                print("warning: host member verifier is missing; run "
+                      "scripts/host-g2-auth.py --apply on the host")
+        except Exception as exc:
+            print("warning: could not check host verifier: %s" % exc)
     if jwt:
         when = datetime.fromtimestamp(exp, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         print("%s: member grant for %s (expires %s)" %

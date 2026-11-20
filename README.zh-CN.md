@@ -187,7 +187,8 @@ python3 scripts/host-g2-auth.py --restore
 `server-main.cjs`，升级后需要重新 `--apply`。详见
 [docs/host-g2-auth.md](docs/host-g2-auth.md)。
 
-gateway 半无法认证时，改用官方 `gateway` 模式。
+配置了 SSH 目标时，`mld check` 会显示 `host auth: member g2/role verifier
+present`；缺失时会提示 apply 命令。gateway 半无法认证时，改用官方 `gateway` 模式。
 
 ### 查找成员 grant（诊断）
 

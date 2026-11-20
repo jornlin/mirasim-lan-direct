@@ -248,7 +248,10 @@ device keys (`via=known`) and do not need the short-lived session again.
 An app update replaces `server-main.cjs`, so re-apply the host patch after
 updating Mirasim. See [docs/host-g2-auth.md](docs/host-g2-auth.md).
 
-If the gateway half cannot authenticate, use official `gateway` mode instead.
+`mld check` also reports `host auth: member g2/role verifier present` when the
+config has an SSH target; a missing verifier is called out with the apply
+command. If the gateway half cannot authenticate, use official `gateway` mode
+instead.
 
 ### Finding a member grant (diagnostic)
 
