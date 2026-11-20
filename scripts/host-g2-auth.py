@@ -33,6 +33,7 @@ from pathlib import Path
 
 G2_PUB = "MCowBQYDK2VwAyEAOmNXkUzCeX8EnTNFifxbOldQTJHuERtnLIsB1qmOiu8"
 MARKER = "/*mld-g2-auth*/"
+ROLE_MARK = "/*mld-member-role*/"
 OLD = 'if(g5["grant"]){if(!a4["grants"])'
 INJECT = (
     'if(g5["grant"]){'
@@ -48,6 +49,16 @@ INJECT = (
     'role:_m["role"]==="member"?"member":"admin",'
     '...Rs(_m["email"])?{accountLabel:Rs(_m["email"])}:{}}}catch{}'
     'if(!a4["grants"])'
+)
+
+LYR_OLD = (
+    'function LYr(a4,b5){return!b5["managedHarness"]&&b5["admins"]["length"]===0'
+    '||!a4||b5["owner"]&&a4===b5["owner"]||b5["admins"]["includes"](a4)?"admin":"member"}'
+)
+LYR_NEW = (
+    'function LYr(a4,b5){' + ROLE_MARK +
+    'return b5["managedHarness"]&&b5["admins"]["length"]===0'
+    '||!a4||b5["owner"]&&a4===b5["owner"]||b5["admins"]["includes"](a4)?"admin":"member"}'
 )
 
 
@@ -79,16 +90,31 @@ def check(path: Path) -> int:
 
 def apply(path: Path) -> int:
     text = path.read_text(encoding="utf-8", errors="surrogateescape")
-    if MARKER in text:
+    changed = False
+    backed = False
+    if MARKER not in text:
+        if text.count(OLD) != 1:
+            print("expected one Flo enrollment branch, found", text.count(OLD), file=sys.stderr)
+            return 2
+        backup = backup_for(path)
+        shutil.copy2(path, backup)
+        backed = True
+        text = text.replace(OLD, INJECT, 1)
+        changed = True
+    if ROLE_MARK not in text:
+        if text.count(LYR_OLD) != 1:
+            print("expected one role function, found", text.count(LYR_OLD), file=sys.stderr)
+            return 2
+        backup = backup_for(path)
+        if not backed:
+            shutil.copy2(path, backup)
+        text = text.replace(LYR_OLD, LYR_NEW, 1)
+        changed = True
+    if not changed:
         print("already patched")
         return 0
-    if text.count(OLD) != 1:
-        print("expected one Flo enrollment branch, found", text.count(OLD), file=sys.stderr)
-        return 2
-    backup = backup_for(path)
-    shutil.copy2(path, backup)
-    path.write_text(text.replace(OLD, INJECT, 1), encoding="utf-8", errors="surrogateescape")
-    print("patched", path, "backup", backup)
+    path.write_text(text, encoding="utf-8", errors="surrogateescape")
+    print("patched", path, "backup", backup_for(path))
     return check(path)
 
 

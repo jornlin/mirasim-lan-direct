@@ -213,7 +213,9 @@ a two-link hybrid:
   administration — the relay supplies the requester credential that agent
   turns need;
 - **LAN direct** carries sessions, terminals, files and snapshots, using the
-  member's g2 gateway session as the account grant.
+  member's g2 gateway session as the account grant. The host verifier also
+defaults non-owner account devices on an attached host to `member` (add the
+account to `mirachannelMachineAdmins` if it should have admin data access).
 
 First enrollment needs a small host-side verifier (the host normally accepts
 only g1 enroll grants on its direct listener):

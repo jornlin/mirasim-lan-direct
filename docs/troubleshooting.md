@@ -129,6 +129,9 @@ output to a file and use `mld init --pair pair.json`.
 - `mirachannelSharedAccounts` is not required by the g2 verifier; the g2
   session is the authorization. After a member leaves, revoke their stored
   `via=account` device to cut existing LAN access.
+- Member direct data defaults to `role=member` on an attached host. If the
+  account must have admin data access, add it to `mirachannelMachineAdmins`
+  (owner stays admin). Chat on the gateway follows the space role.
 - Do not run a second mirasim server on a host that is already a collab space.
   An SSH/remote server staged in `~/.mirasim-remote` defaults to the same
   `MIRASIM_HOME` and competes for the space program, rendezvous registration

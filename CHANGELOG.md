@@ -15,7 +15,10 @@
   cloud node id, `sub`, `exp`). The first enrollment stores a normal
   `via=account` device; later reconnects use device keys (`via=known`).
   Includes backup/restore and a syntax check.
-- Document the host patch, its update lifecycle and revocation model.
+- Host verifier also fixes the attached-host role fallback: a non-owner account
+  device defaults to `member` instead of `admin`; owner and
+  `mirachannelMachineAdmins` remain admin.
+- Document the host patch, role model, update lifecycle and revocation.
 
 ## 0.4.0 — 2026-11-21
 

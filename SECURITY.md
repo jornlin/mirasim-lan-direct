@@ -33,8 +33,10 @@ store the session. The first successful connection stores a normal
 device keys. Revoke that device when the member leaves; space removal alone
 stops new sessions but does not delete an already enrolled device.
 
-The script backs up `server-main.cjs` and supports `--restore`. A Mirasim update
-replaces that file; re-apply the verifier. The host patch is security-sensitive:
+The script also changes the attached-host role fallback so a non-owner account
+device is `member`, not `admin`; the owner and `mirachannelMachineAdmins`
+entries stay admin. The script backs up `server-main.cjs` and supports
+`--restore`. A Mirasim update replaces that file; re-apply the verifier. The host patch is security-sensitive:
 review the script before running it and keep the host's device/account list
 under the same care as the space membership list.
 

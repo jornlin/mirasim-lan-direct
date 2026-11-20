@@ -155,6 +155,8 @@ mld check                            # member (cloud grant)
 - **gateway**：聊天/频道、presence、任务派发和成员管理；relay 会补上 agent
   轮次需要的请求人凭证；
 - **局域网直连**：会话、终端、文件、快照；用成员的 g2 gateway session 作为账号 grant。
+  宿主校验同时把 attached 主机上的非 owner 账号设备默认设为 `member`；需要管理员数据
+  权限时把该账号加入 `mirachannelMachineAdmins`。
 
 第一次直连需要宿主侧的一个小验证补丁（宿主直连监听默认只认 g1 enroll grant）：
 

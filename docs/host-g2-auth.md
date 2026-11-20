@@ -6,12 +6,17 @@ presents the member's short-lived **g2 gateway session** as an account grant.
 
 The shipped host accepts only **g1 enroll grants** on its direct mirachannel
 listener. `scripts/host-g2-auth.py` adds a second verifier to the host's `Flo`
-enrollment branch:
+enrollment branch and fixes the attached-host default role:
 
 - verify the g2 signature with the g2 public key that ships with the host;
 - require `kind: "gateway"`, `aud` = the host's cloud node id, a `sub`, and an
   unexpired `exp`;
-- return `via: "account"`, `accountId: sub`, and the claim's role.
+- return `via: "account"`, `accountId: sub`, and the claim's role;
+- change the `LYr` fallback so a non-owner account device on an **attached**
+  host is `member`, not `admin`. Without this, an empty
+  `mirachannelMachineAdmins` made every account device admin. The owner account
+  and entries in `mirachannelMachineAdmins` stay admin; managed-harness hosts
+  keep their old default.
 
 No cloud credential is minted or forwarded. A valid g2 session is already
 issued by Mirasim to an account that can open this machine.
@@ -56,6 +61,8 @@ The script writes a timestamped sibling backup:
   signature, audience and expiry; it does not check space membership again.
   The cloud only issues it to an account that can open the machine.
 - The resulting device is a normal account device; revoke it from the host's
-  device list when someone leaves.
+  device list when someone leaves. Direct data runs as `member` unless the
+  account is in `mirachannelMachineAdmins`; chat on the gateway still uses the
+  space role from the relay.
 - The patch does not enable g2 on the gateway listener (the relay already
   authenticates those); it only affects direct mirachannel enrollment.
