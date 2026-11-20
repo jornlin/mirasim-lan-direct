@@ -105,16 +105,19 @@ mld init --node pc-... --host 192.168.1.50:4939 --host 10.0.0.5:4939 \
 - 只有配置了 SSH 目标时才会自动刷新 pair（token/E2E/地址）；否则宿主变化后需重新
   `mld init`。
 
-## 协作：direct、hybrid、gateway
+## 协作：direct、hybrid、member、gateway
 
 - **direct**：只走局域网，没有云身份/在线状态/聊天；不需要协作时使用。
-- **hybrid**：会话、终端、文件走局域网，协作能力走 gateway。空间已云附加时推荐。
-- **gateway**：全部走中继。hybrid 的网关半无法认证，或希望只保留一条链路时使用。
+- **hybrid**：会话、终端、文件走局域网，协作能力走 gateway。适合 owner 自己的设备。
+- **member**：空间里的其他账号；聊天/任务/presence 走 gateway，数据走局域网并用成员的
+  g2 grant。需要可选的宿主校验。
+- **gateway**：全部走中继。hybrid/member 的网关半无法认证，或只希望一条链路时使用。
 
 ```sh
-mld mode <node-id-或-label> hybrid       # 局域网数据 + 协作
+mld mode <node-id-或-label> hybrid       # owner 设备：局域网数据 + 协作
 mld mode <node-id-或-label> direct       # 仅局域网
 mld mode <node-id-或-label> gateway      # 仅中继
+mld member <node-id-或-label>            # 其他账号：局域网数据 + 网关任务
 ```
 
 ### 混合模式细节
@@ -210,7 +213,7 @@ mld mode <node-id-或-label> direct|gateway|hybrid
 | `mld init` | 拉取/导入目标数据并写配置 |
 | `mld patch [--force] [--dry-run] [--restart]` | 生成并安装渲染层补丁 |
 | `mld mode <node> direct\|gateway\|hybrid` | 切换空间并应用（`--stage` 只改配置） |
-| `mld member <node> --grant-file <jwt>` | 用成员账号 grant 做局域网直连 |
+| `mld member <node>` | 其他账号：网关协作 + 局域网数据（可选 `--grant-file`） |
 | `mld check` | 显示 App 版本、已装标记、目标模式/可达性、代理状态 |
 | `mld autopatch` | 代理入口：缺失/过期/不可达时才处理 |
 | `mld restore` | 恢复原始 `app.asar` 并停用自动重打 |
@@ -238,6 +241,9 @@ mld mode <node-id-或-label> direct|gateway|hybrid
 6. 退出 Mirasim → 备份原始 asar → 安装 → 重新启动。
 
 宿主不可达时保留现有补丁，不会反复重启 App；崩溃残留的锁在 15 分钟后自动清理。
+
+代理只重打客户端的 `app.asar`。可选的宿主 g2 校验（`scripts/host-g2-auth.py`）位于宿主
+的 `server-main.cjs`，Mirasim 升级同样会覆盖它；升级后需要在宿主上重新 `--apply`。
 
 代理运行的是 `<配置目录>/runtime` 里的代码副本，所以仓库移动/删除不影响它
 （改代码后重新执行 `mld agent install` 即可更新副本）。
@@ -284,6 +290,11 @@ mld restore
   活跃记录保持一条，界面会隐藏已撤销的记录。
 - 宿主开启 `mirachannelStrictAuth` 时，共享 token 会被拒，直连回落中继。
 - 离开局域网会回落中继；回到同网段后重开空间窗口恢复直连。
+- member 模式第一次直连需要可选的宿主 g2 校验。首次 enrollment 后宿主会保存一条
+  `via=account` 设备；成员退出空间只会停止签发新 session，已保存设备需要单独撤销。
+  宿主 App 升级会覆盖 `server-main.cjs`，需重新执行 `scripts/host-g2-auth.py`。
+- member 模式是混合模式：聊天/任务派发/presence 仍走 gateway，只有会话/终端/文件数据
+  走局域网；纯直连拿不到 agent 轮次需要的请求人凭证。
 
 ## 安全
 

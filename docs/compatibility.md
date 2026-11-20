@@ -4,13 +4,18 @@
 
 | App build | Platform | Result |
 |---|---|---|
-| 0.0.828 | macOS (arm64) | patched; direct single-link collaboration and hybrid verified |
+| 0.0.828 | macOS (arm64) | patched; direct/hybrid and member hybrid (g2 host verifier) verified |
 | 0.0.827 | macOS (arm64) | patched, direct LAN verified |
 | 0.0.824 | macOS host | pair/CSP/transport verified |
 | 0.0.824 | Windows | not yet verified on a real Windows machine |
 
-The patcher is shape-based, so minor builds should keep working. The two shapes
-it relies on are:
+Member mode additionally uses the host verifier in
+`scripts/host-g2-auth.py`. It is shape-based on the host's `Flo` enrollment
+branch; a host app update replaces it, so re-apply after updating. Existing
+`via=known` member devices keep working until then, but new enrollments fail.
+
+The client patcher is shape-based, so minor builds should keep working. The two
+shapes it relies on are:
 
 1. the cloud-target function:
    `const <v>=<p>.gatewayUrl??"";return{mode:"remote",host:""`

@@ -13,6 +13,20 @@
       "e2e": "REPLACE_WITH_HOST_E2E_PUBLIC_KEY",
       "installId": "mld-replace-with-a-random-hex-id",
       "collab": true
+    },
+    {
+      "nodeId": "pc-member0000000000",
+      "label": "shared-member",
+      "mode": "direct",
+      "member": true,
+      "collab": true,
+      "hosts": [
+        "http://192.168.1.50:4939"
+      ],
+      "origin": "http://192.168.1.50:4939",
+      "token": "",
+      "e2e": "REPLACE_WITH_HOST_E2E_PUBLIC_KEY",
+      "installId": "mld-replace-with-a-different-random-hex-id"
     }
   ],
   "ssh": {

@@ -5,7 +5,8 @@
 - A **host access token** and the host's **E2E public key**, read from the
   host's `/mirachannel/pair` endpoint or supplied on the command line.
 - A **patched `app.asar`** that embeds that token, so the app can authenticate
-  to the host over the LAN.
+  to the host over the LAN. Member mode instead keeps a short-lived cloud g2
+  session at runtime and embeds no shared token.
 
 The token is a bearer credential for the host's mirachannel endpoint. Treat it
 like a password.
@@ -20,6 +21,22 @@ like a password.
 - Backups under `<config dir>/backups/` contain the *unpatched* app and no
   secrets.
 - Logs contain node ids and addresses, not tokens.
+
+## Member mode and the host verifier
+
+Member mode uses a Mirasim-issued g2 gateway session as the first direct
+account grant. The optional `scripts/host-g2-auth.py` adds a verifier to the
+host's `server-main.cjs`. It checks the g2 signature (shipped public key),
+`kind=gateway`, the host cloud node id in `aud`, `sub`, and expiry; it does not
+store the session. The first successful connection stores a normal
+`via=account` device with the member's account id, so later connections use
+device keys. Revoke that device when the member leaves; space removal alone
+stops new sessions but does not delete an already enrolled device.
+
+The script backs up `server-main.cjs` and supports `--restore`. A Mirasim update
+replaces that file; re-apply the verifier. The host patch is security-sensitive:
+review the script before running it and keep the host's device/account list
+under the same care as the space membership list.
 
 ## Repository hygiene
 

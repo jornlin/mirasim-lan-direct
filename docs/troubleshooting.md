@@ -107,11 +107,28 @@ output to a file and use `mld init --pair pair.json`.
 
 ## Collaboration mode won't activate
 
-- Direct mode bypasses the gateway; collaboration identity/presence lives on the
-  gateway/account session. Use hybrid (LAN data + gateway collaboration):
-  `mld mode <node|label> hybrid` then `mld patch --force --restart`. If the
-  gateway half cannot authenticate, fall back to
-  `mld mode <node|label> gateway`.
+- On the **owner's own devices**, use hybrid (LAN data + gateway chat):
+  `mld mode <node|label> hybrid` then `mld patch --force --restart`.
+- For **other accounts**, use member mode:
+  `mld member <node|label>` then apply. It keeps the gateway for chat, presence
+  and task dispatch (the relay supplies the requester credential) and uses the
+  LAN for session/terminal/file data with the member's g2 grant.
+- Member mode's first enrollment needs the optional host verifier:
+  on the host, `python3 scripts/host-g2-auth.py --apply`, then restart Mirasim.
+  `--restore` rolls it back.
+- `needs-requester` / “没带上请求人的凭证” means a pure direct link was used for
+  chat/task frames. Use member mode (hybrid), not pure direct.
+- `account enrollment refused (bad-signature)` means the host did not accept the
+  g2 session: the host verifier is missing/stale, or the g2 public key/`aud`
+  check is wrong. Re-apply `scripts/host-g2-auth.py`; the expected claim is
+  `kind=gateway`, `aud=<host cloud node id>`, `sub=<member account>`.
+- Check `mld check`: a member target prints `member (cloud grant)`.
+- Host logs should show `via=grant`/`via=known ... remote=10.x` for the member's
+  data link and `via=gateway` for chat. `via=legacy` means the shared-token
+  target was used instead of member mode.
+- `mirachannelSharedAccounts` is not required by the g2 verifier; the g2
+  session is the authorization. After a member leaves, revoke their stored
+  `via=account` device to cut existing LAN access.
 - Do not run a second mirasim server on a host that is already a collab space.
   An SSH/remote server staged in `~/.mirasim-remote` defaults to the same
   `MIRASIM_HOME` and competes for the space program, rendezvous registration

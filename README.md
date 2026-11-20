@@ -151,19 +151,23 @@ it. `.gitignore` already excludes it. Automatic pair refresh (token/E2E/hosts)
 only runs when the config has an `ssh` target; without SSH, re-run `mld init`
 after the host changes.
 
-## Collaboration: direct, hybrid, gateway
+## Collaboration: direct, hybrid, member, gateway
 
 - **direct** — LAN only. No cloud identity/presence/chat; use it when a space
   does not need collaboration.
 - **hybrid** — LAN session/terminal/file data plus a gateway link for
-  collaboration. This is the recommended mode when a space is cloud-attached.
+  collaboration. Recommended for the owner's own devices on a cloud-attached
+  space.
+- **member** — another account in the space: gateway chat/tasks/presence plus
+  LAN data with the member's g2 grant. Needs the optional host verifier.
 - **gateway** — everything through the relay. Use it as a fallback if the
-  hybrid gateway half cannot authenticate, or when you want a single link.
+  hybrid/member gateway half cannot authenticate, or when you want one link.
 
 ```sh
-mld mode <node-id-or-label> hybrid       # LAN data + collaboration
+mld mode <node-id-or-label> hybrid       # owner devices: LAN data + collab
 mld mode <node-id-or-label> direct       # LAN only
 mld mode <node-id-or-label> gateway      # relay only
+mld member <node-id-or-label>            # another account: LAN data + gateway tasks
 ```
 
 ### Hybrid details
@@ -190,7 +194,7 @@ The legacy modes embed the host's shared token and open a LAN connection with
 `role=admin`. That connection has no gateway viewer identity, so the host's
 chat identity falls back to its **own signed-in owner account**. Use them only
 on devices signed into the **same account as the host**, and never distribute
-the shared token.
+the shared token. For a different account, use the member mode below.
 
 ### Members with their own account (member mode)
 
@@ -273,7 +277,7 @@ renderer; changing it rebuilds `app.asar`.
 | `mld init` | fetch/import target data and write the config |
 | `mld patch [--force] [--dry-run] [--restart]` | build and install the renderer patch |
 | `mld mode <node> direct\|gateway\|hybrid` | switch a space and apply it (`--stage` to only configure) |
-| `mld member <node> --grant-file <jwt>` | use a member account grant for direct LAN |
+| `mld member <node>` | other account: gateway collab + LAN data (optional `--grant-file`) |
 | `mld check` | show app version, installed marker, target mode/reachability, agent state |
 | `mld autopatch` | agent entry point: patch only if missing/stale/unreachable |
 | `mld restore` | restore the pristine `app.asar` and disable the agent |
@@ -308,6 +312,10 @@ On every run the agent:
 
 If the host is unreachable, the agent keeps the existing patch and does not
 restart the app. A stale lock (crash/SIGKILL) is cleared after 15 minutes.
+
+The agent only re-patches the client `app.asar`. The optional host g2 verifier
+(`scripts/host-g2-auth.py`) lives in the host's `server-main.cjs`, which a
+Mirasim update also replaces; re-apply it on the host after updating.
 
 Logs: `<config dir>/autopatch.log`. Backups: `<config dir>/backups/`.
 
@@ -359,6 +367,14 @@ See [docs/how-it-works.md](docs/how-it-works.md). Short version:
 - `mirachannelStrictAuth` on the host will reject the shared token; direct
   routing then falls back to the relay.
 - Leaving the LAN makes the direct route fail and fall back to the relay.
+- Member mode needs the optional host g2 verifier for the first direct
+  enrollment. The enrolled `via=account` device persists until revoked; removing
+  a member from the space stops new sessions, so also revoke their stored device
+  to cut existing LAN access. The host's `server-main.cjs` is replaced by app
+  updates; re-apply `scripts/host-g2-auth.py`.
+- Member mode is hybrid: chat/task dispatch and presence still use the gateway;
+  only session/terminal/file data is direct. A pure direct link cannot supply
+  the requester credential agent turns need.
 
 ## Development
 

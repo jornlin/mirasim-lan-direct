@@ -34,7 +34,16 @@ class PatchTests(unittest.TestCase):
         self.assertEqual(changed, ["/dist/renderer/assets/default-space.js"])
         js = self.a.get("/dist/renderer/assets/default-space.js").decode()
         self.assertIn("installId:e.installId||void 0", js)
+        self.assertIn("member:e.member||void 0", js)
         self.assertIn('"i":"mld-test"', js)
+
+    def test_member_config_flags(self):
+        t = patch.Target("pc-test", "http://10.0.0.5:4939", "", "e2e456",
+                         "mld-test", True, False, "", True)
+        cfg = t.as_config()
+        self.assertTrue(cfg.get("c"))
+        self.assertTrue(cfg.get("m"))
+        self.assertNotIn("g", cfg)
 
     def test_hybrid_transport(self):
         changed = patch.patch_hybrid_transport(self.a)
