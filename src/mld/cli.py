@@ -212,7 +212,20 @@ def _apply_and_install(cfg: dict, app: system.App, targets: List[patch.Target],
 def cmd_init(args) -> int:
     cfg = _load_cfg()
     entry = None
-    if args.pair:
+    if args.member:
+        if not (args.node and args.host and args.e2e):
+            raise SystemExit("member setup needs --node --host --e2e "
+                             "(the host's public E2E key; no shared token)")
+        entry = {
+            "nodeId": args.node,
+            "label": args.label or args.node,
+            "hosts": args.host,
+            "token": "",
+            "e2e": args.e2e,
+            "collab": True,
+            "member": True,
+        }
+    elif args.pair:
         with open(args.pair, "r", encoding="utf-8") as fh:
             entry = config.entry_from_pair(json.load(fh), args.host or None)
     elif args.ssh:
@@ -248,7 +261,7 @@ def cmd_init(args) -> int:
     _ensure_install_ids(cfg)
     if args.ssh:
         cfg["ssh"] = {"target": args.ssh, "port": (cfg.get("ssh") or {}).get("port") or args.port}
-    if entry:
+    if entry and not args.member:
         cfg["pairRefreshedAt"] = _timestamp()
     if args.app:
         cfg["app"] = str(system.find_app(args.app).root)
@@ -551,6 +564,32 @@ def cmd_member(args) -> int:
                                         restart=True, original=None))
 
 
+def cmd_invite(args) -> int:
+    cfg = _load_cfg()
+    match = None
+    for entry in cfg.get("targets") or []:
+        if entry.get("nodeId") == args.target or entry.get("label") == args.target:
+            match = entry
+            break
+    if match is None:
+        raise SystemExit("no configured target matches %r" % args.target)
+    node = match["nodeId"]
+    hosts = match.get("hosts") or ([match["origin"]] if match.get("origin") else [])
+    e2e = match.get("e2e") or ""
+    print("nodeId: %s" % node)
+    print("hosts:  %s" % " ".join(hosts))
+    print("e2e:    %s" % e2e)
+    print()
+    print("member device (no shared token):")
+    print("  mld init --member --node %s --host %s --e2e %s" %
+          (node, " --host ".join(hosts), e2e))
+    print("  mld patch --restart")
+    print()
+    print("host (once, or after a Mirasim update):")
+    print("  python3 scripts/host-g2-auth.py --apply")
+    return 0
+
+
 def cmd_agent(args) -> int:
     cfg = _load_cfg()
     if args.action == "status":
@@ -604,6 +643,8 @@ def build_parser() -> argparse.ArgumentParser:
     i.add_argument("--app", help="Mirasim.app / Mirasim install root")
     i.add_argument("--original", help="unpatched app.asar to keep for future rebuilds")
     i.add_argument("--collab", action="store_true", help="try collab presence on a direct target")
+    i.add_argument("--member", action="store_true",
+                   help="create a member target: no shared token; gateway collab + LAN data")
     i.set_defaults(func=cmd_init)
 
     pt = sub.add_parser("patch", help="build and install the renderer patch")
@@ -630,6 +671,10 @@ def build_parser() -> argparse.ArgumentParser:
     cb.add_argument("target", help="node id or label")
     cb.add_argument("state", choices=["on", "off"])
     cb.set_defaults(func=cmd_collab)
+
+    iv = sub.add_parser("invite", help="print the member setup info for a target (no token)")
+    iv.add_argument("target", help="node id or label")
+    iv.set_defaults(func=cmd_invite)
 
     mb = sub.add_parser("member", help="use a member's account grant for LAN direct (no shared token)")
     mb.add_argument("target", help="node id or label")

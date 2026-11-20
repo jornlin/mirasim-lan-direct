@@ -150,6 +150,21 @@ mld member <node-id-或-label>        # 不需要 grant 文件
 mld check                            # member (cloud grant)
 ```
 
+owner 给另一台设备准备：
+
+```sh
+mld invite <node-id-或-label>        # 打印 node/host/e2e 和成员命令
+```
+
+成员设备上：
+
+```sh
+mld init --member --node <id> --host <ip:port> --e2e <host key>
+mld patch --restart
+```
+
+不读取、不写入共享 token。
+
 目标保留云端 `gatewayUrl` 和 `grant`，去掉 `token`，运行双链路混合模式：
 
 - **gateway**：聊天/频道、presence、任务派发和成员管理；relay 会补上 agent
@@ -215,6 +230,8 @@ mld mode <node-id-或-label> direct|gateway|hybrid
 | `mld init` | 拉取/导入目标数据并写配置 |
 | `mld patch [--force] [--dry-run] [--restart]` | 生成并安装渲染层补丁 |
 | `mld mode <node> direct\|gateway\|hybrid` | 切换空间并应用（`--stage` 只改配置） |
+| `mld init --member ...` | 创建成员目标，不需要共享 token |
+| `mld invite <node>` | 打印 node/host/e2e 与成员命令（不含 token） |
 | `mld member <node>` | 其他账号：网关协作 + 局域网数据（可选 `--grant-file`） |
 | `mld check` | 显示 App 版本、已装标记、目标模式/可达性、代理状态 |
 | `mld autopatch` | 代理入口：缺失/过期/不可达时才处理 |

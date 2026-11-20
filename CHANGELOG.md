@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.0 — 2026-11-21
+
+- `mld init --member` creates a member target from node/host/e2e only; it does
+  not read or embed the host shared token.
+- `mld invite <node>` prints the public node/host/e2e and the exact member
+  commands plus the host g2 verifier command, so the owner can hand a member a
+  self-contained setup recipe without revealing the token.
+
 ## 0.5.0 — 2026-11-21
 
 - Member mode is hybrid: the cloud `gatewayUrl` + g2 session are kept; chat,

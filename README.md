@@ -206,6 +206,21 @@ mld member <node-id-or-label>        # no grant file needed
 mld check                            # member (cloud grant)
 ```
 
+Owner setup for another device:
+
+```sh
+mld invite <node-id-or-label>        # prints node/host/e2e and the commands
+```
+
+On the member device:
+
+```sh
+mld init --member --node <id> --host <ip:port> --e2e <host key>
+mld patch --restart
+```
+
+No shared token is read or written.
+
 The target keeps the cloud `gatewayUrl` and `grant`, drops `token`, and runs as
 a two-link hybrid:
 
@@ -279,6 +294,8 @@ renderer; changing it rebuilds `app.asar`.
 | `mld init` | fetch/import target data and write the config |
 | `mld patch [--force] [--dry-run] [--restart]` | build and install the renderer patch |
 | `mld mode <node> direct\|gateway\|hybrid` | switch a space and apply it (`--stage` to only configure) |
+| `mld init --member ...` | create a member target without the shared token |
+| `mld invite <node>` | print node/host/e2e and member setup commands (no token) |
 | `mld member <node>` | other account: gateway collab + LAN data (optional `--grant-file`) |
 | `mld check` | show app version, installed marker, target mode/reachability, agent state |
 | `mld autopatch` | agent entry point: patch only if missing/stale/unreachable |
