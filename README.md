@@ -1,5 +1,7 @@
 # mirasim-lan-direct
 
+[English](README.md) | [简体中文](README.zh-CN.md)
+
 Make a selected **Mirasim** cloud space connect to its host **directly over the
 LAN** instead of through `relay.mirasim.ai`.
 
@@ -84,6 +86,8 @@ elevated PowerShell. The task calls the same CLI; no re-signing is needed on
 Windows (Authenticode signs the executable, not `app.asar`).
 
 ## 中文速览
+
+完整中文说明见 [README.zh-CN.md](README.zh-CN.md)。
 
 非官方工具：把你自己账号下的某个 Mirasim 云空间改成**局域网直连**，不走 `relay.mirasim.ai`。只在自己拥有的机器和空间上使用。
 
