@@ -1,0 +1,7 @@
+[Unit]
+Description=Re-apply the Mirasim LAN-direct patch after app updates
+
+[Service]
+Type=oneshot
+Environment=PYTHONPATH=/opt/mirasim-lan-direct/src
+ExecStart=/usr/bin/python3 -m mld autopatch
