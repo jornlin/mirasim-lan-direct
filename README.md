@@ -184,6 +184,20 @@ The space must still be cloud-attached and the gateway half must authenticate
 (the target keeps its cloud grant). If the gateway half cannot authenticate,
 switch back to `gateway` mode.
 
+### Who can use direct/hybrid
+
+Both modes embed the host's shared token and open a legacy LAN connection with
+`role=admin`. A LAN connection has no gateway viewer identity, so the host's
+chat identity falls back to its **own signed-in owner account**. Use these
+modes only on devices signed into the **same account as the host**.
+
+Do **not** distribute the patched app, its config, or the shared token to other
+members: they would act as the owner and get admin-level data access. Other
+members should keep using the official gateway/cloud client; your LAN patch
+does not affect them, and the host serves both at once. Hybrid fixes the chat
+identity through its gateway link but its LAN data link still carries the
+shared token, so it is also owner-device-only.
+
 ### Direct collab gate (legacy)
 
 `mld collab <node> on` can force the renderer's presence gate for a direct

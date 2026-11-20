@@ -4,7 +4,7 @@
 
 | App build | Platform | Result |
 |---|---|---|
-| 0.0.828 | macOS (arm64) | patched, hybrid LAN + gateway collaboration verified |
+| 0.0.828 | macOS (arm64) | patched; direct single-link collaboration and hybrid verified |
 | 0.0.827 | macOS (arm64) | patched, direct LAN verified |
 | 0.0.824 | macOS host | pair/CSP/transport verified |
 | 0.0.824 | Windows | not yet verified on a real Windows machine |

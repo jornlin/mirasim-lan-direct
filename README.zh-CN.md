@@ -132,6 +132,17 @@ mld mode <node-id-或-label> gateway      # 仅中继
 空间仍需保持云附加（cloud attach），且 gateway 半必须能认证（目标保留云 grant）。
 gateway 半认证失败时，切回 `gateway` 模式。
 
+### 哪些设备可以用 direct/hybrid
+
+这两种模式都会把宿主的共享 token 写进补丁，并用局域网 legacy 连接，角色是
+`role=admin`。局域网连接没有 gateway viewer 身份，宿主的聊天身份会回落到**宿主自己
+登录的 owner 账号**。因此只应在**与宿主同一账号**的设备上使用。
+
+**不要**把补丁后的 App、配置或共享 token 分发给其他成员：他们会以 owner 身份出现，
+并拿到管理员级的数据访问权限。其他成员应继续使用官方 gateway/云端客户端；你的局域网
+补丁不影响他们，宿主可以同时服务两边。Hybrid 的聊天身份走网关是正确的，但它的局域网
+数据链路仍带共享 token，所以同样只适合 owner 自己的设备。
+
 ### 直连协作开关（旧）
 
 `mld collab <node> on` 可以强制打开直连目标的渲染层在线状态开关，但空间是否真的协作

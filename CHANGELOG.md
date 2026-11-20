@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.2.2 — 2026-11-20
+
+- Direct collaboration without a gateway: a `direct` target with `collab`
+  enabled now wraps the LAN client with `clientHello {remoteByChoice:true}`,
+  `managed:true` and the original-`post` capture. Verified on 0.0.828: chat,
+  presence and the collaboration layout work over a single LAN link.
+- Document the identity boundary: a legacy LAN connection is `role=admin` and
+  has no gateway viewer, so the host's chat identity falls back to its own
+  signed-in owner account. Direct/hybrid are therefore for the owner's own
+  devices; other members must use the official gateway/cloud client, and the
+  patched app/shared token must not be distributed.
+
 ## 0.2.1 — 2026-11-20
 
 - Documentation: recommend hybrid for LAN data + collaboration; document the

@@ -154,6 +154,20 @@ the app is never replaced with an archive that would not load.
 The archive is also re-serialized with recomputed offsets and SHA-256 integrity
 blocks, then re-read and verified in memory.
 
+## Identity on each link
+
+The host derives a connection's chat identity in `identify(conn)`:
+
+- a gateway connection has a `viewer` injected by the relay, so it acts as that
+  member with their role;
+- a legacy LAN connection has no viewer. Its role is `admin`, so the host falls
+  back to its own signed-in account and treats the client as the **owner**.
+
+That is why direct and hybrid are owner-device modes. The shared token is also
+an admin bearer secret: distributing it to another member would give them the
+owner's data access. Other members should use the official gateway client,
+which carries their own viewer identity.
+
 ## Backups and rebuild sources
 
 - When the installed `app.asar` is unpatched, it is the source and is backed up

@@ -126,6 +126,32 @@ class PatchTests(unittest.TestCase):
         self.assertEqual(out["hello"], {"type": "clientHello", "remoteByChoice": True})
 
     @unittest.skipUnless(shutil.which("node"), "node not available")
+    def test_direct_collab_client_flags(self):
+        # A direct (no gateway) collab client still needs remote posture and
+        # the managed layout flag, and must survive the renderer's post wrapper.
+        hyb = patch.HYB_FN.decode()
+        script = (
+            "const cap={};const posts=[];"
+            "const direct={connected:true,post(f){posts.push(f);return true},"
+            "onFrame(cb){cap.fcb=cb;return()=>{}},onConnection(cb){cap.ccb=cb;return()=>{}},"
+            "close(){},dispose(){}};"
+            + hyb
+            + "\nconst c=HYB({nodeId:'pc',host:'http://h',collab:true},{},{...direct});"
+              "const seen=[];c.onFrame(f=>seen.push(f.type));"
+              "cap.fcb({type:'chatOpened'});"
+              "const orig=c.post;c.post=f=>orig(f);c.post({type:'chatOpen'});"
+              "console.log(JSON.stringify({managed:c.managed===true,"
+              "hello:posts[0],seen,posts:posts.map(f=>f.type)}));"
+        )
+        proc = subprocess.run(["node", "-e", script], capture_output=True, text=True)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        out = json.loads(proc.stdout)
+        self.assertTrue(out["managed"])
+        self.assertEqual(out["hello"], {"type": "clientHello", "remoteByChoice": True})
+        self.assertEqual(out["seen"], ["chatOpened"])
+        self.assertEqual(out["posts"], ["clientHello", "chatOpen"])
+
+    @unittest.skipUnless(shutil.which("node"), "node not available")
     def test_patched_function_behaviour(self):
         patch.patch_js(self.a, TARGETS)
         js = self.a.get("/dist/renderer/assets/default-space.js").decode()
