@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.4 — 2026-11-20
+
+- Optional collab presence for a direct target: `mld collab <node|label> on`
+  forces the renderer's presence gate and sets `globalThis.__mldCollab` when the
+  target is built. The host's presence service still gates on the space's cloud
+  attach; if the UI does not activate, use gateway mode.
+
 ## 0.1.3 — 2026-11-20
 
 - Per-space `mode`: `direct` (LAN, no gateway) or `gateway` (relay, keeps cloud

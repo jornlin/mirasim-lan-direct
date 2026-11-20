@@ -119,6 +119,16 @@ mld patch --force --restart
 切回直连：`mld mode <...> direct`，再 `mld patch --force --restart`。宿主还需保持
 「协作空间」开启、平台连接正常。
 
+直连目标也可以尝试不走 gateway 的协作界面：
+
+```sh
+mld collab <node-id-或-label> on
+mld patch --force --restart
+```
+
+这会让该目标强制打开渲染层的在线状态开关；空间是否真的协作由宿主的 presence 服务
+决定。若界面仍未激活，就用 gateway 模式。
+
 ## 命令
 
 | 命令 | 作用 |

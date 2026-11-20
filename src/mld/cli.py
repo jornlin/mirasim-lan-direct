@@ -64,7 +64,7 @@ def _resolve_targets(cfg: dict) -> Tuple[List[patch.Target], bool]:
                 entry["origin"] = origin
                 changed = True
         out.append(patch.Target(entry["nodeId"], origin, entry["token"], entry["e2e"],
-                               entry.get("installId") or ""))
+                               entry.get("installId") or "", bool(entry.get("collab"))))
     if not out and not (cfg.get("targets") or []):
         raise ValueError("no targets configured; run `mld init`")
     return out, changed
@@ -195,6 +195,7 @@ def cmd_init(args) -> int:
     elif args.ssh:
         pair, detected = hostinfo.fetch_pair(args.ssh, args.port or None)
         entry = config.entry_from_pair(pair, args.host or None)
+        entry["collab"] = bool(args.collab)
         cfg.setdefault("ssh", {})["port"] = detected
     elif args.token or args.e2e or args.node:
         if not (args.token and args.e2e and args.node and args.host):
@@ -205,6 +206,7 @@ def cmd_init(args) -> int:
             "hosts": args.host,
             "token": args.token,
             "e2e": args.e2e,
+            "collab": bool(args.collab),
         }
     if entry:
         old = next((e for e in cfg.get("targets") or [] if e.get("nodeId") == entry["nodeId"]), None)
@@ -418,6 +420,22 @@ def cmd_mode(args) -> int:
     return 0
 
 
+def cmd_collab(args) -> int:
+    cfg = _load_cfg()
+    match = None
+    for entry in cfg.get("targets") or []:
+        if entry.get("nodeId") == args.target or entry.get("label") == args.target:
+            match = entry
+            break
+    if match is None:
+        raise SystemExit("no configured target matches %r" % args.target)
+    match["collab"] = args.state == "on"
+    _save_cfg(cfg)
+    print("%s: collab presence %s" % (match.get("label") or match["nodeId"], args.state))
+    print("apply with: mld patch --force --restart")
+    return 0
+
+
 def cmd_agent(args) -> int:
     cfg = _load_cfg()
     if args.action == "status":
@@ -470,6 +488,7 @@ def build_parser() -> argparse.ArgumentParser:
     i.add_argument("--label")
     i.add_argument("--app", help="Mirasim.app / Mirasim install root")
     i.add_argument("--original", help="unpatched app.asar to keep for future rebuilds")
+    i.add_argument("--collab", action="store_true", help="try collab presence on a direct target")
     i.set_defaults(func=cmd_init)
 
     pt = sub.add_parser("patch", help="build and install the renderer patch")
@@ -491,6 +510,11 @@ def build_parser() -> argparse.ArgumentParser:
     r.add_argument("--app")
     r.add_argument("--original")
     r.set_defaults(func=cmd_restore)
+
+    cb = sub.add_parser("collab", help="try collaboration presence on a direct target")
+    cb.add_argument("target", help="node id or label")
+    cb.add_argument("state", choices=["on", "off"])
+    cb.set_defaults(func=cmd_collab)
 
     m = sub.add_parser("mode", help="choose direct LAN or gateway/relay (collaboration) for a space")
     m.add_argument("target", help="node id or label")

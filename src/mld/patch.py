@@ -49,11 +49,14 @@ class Target:
     token: str
     e2e: str             # host E2E public key
     install_id: str = ""  # stable client id, so the host supersedes the previous device row
+    collab: bool = False  # enable the collab presence gate for this direct target
 
     def as_config(self) -> dict:
         cfg = {"o": self.origin, "t": self.token, "k": self.e2e}
         if self.install_id:
             cfg["i"] = self.install_id
+        if self.collab:
+            cfg["c"] = 1
         return cfg
 
 
@@ -67,7 +70,7 @@ class PatchResult:
 def target_hash(targets: Sequence[Target]) -> str:
     canonical = json.dumps(
         {"rev": PATCH_REVISION,
-         "targets": sorted((t.node_id, t.origin, t.token, t.e2e, t.install_id)
+         "targets": sorted((t.node_id, t.origin, t.token, t.e2e, t.install_id, t.collab)
                            for t in targets)},
         separators=(",", ":"),
     )
@@ -165,6 +168,7 @@ def _new_function(name: str, param: str, targets: Sequence[Target],
     ent = "d" if param != "d" else "u"
     code = (
         f'function {name}({param}){{const {tbl}={table};const {ent}={tbl}[{param}.nodeId];'
+        f'if({ent}&&{ent}.c)globalThis.__mldCollab=true;'
         f'return{{mode:"remote",host:{ent}?{ent}.o:({param}.host??""),'
         f'token:{ent}?{ent}.t:({param}.token??""),'
         f'...{ent}?{{}}:{grant_fn}({param})&&!{param}.token?{{grant:{param}.grant}}:{{}},'
@@ -256,6 +260,32 @@ def patch_install_id_route(asar: Asar) -> List[str]:
     return [path]
 
 
+COLLAB_GATE_RE = re.compile(rb'\.state\.collab===!0')
+
+
+def patch_collab_gate(asar: Asar) -> List[str]:
+    """Let a direct window enable the collab presence gate.
+
+    The renderer turns presence on only when the host's state frame says
+    ``collab: true``. The host's presence service itself is gated by the space's
+    cloud-attach state, so a direct connection can participate; this makes the
+    client gate robust when the state flag is missing or arrives late.
+    """
+    hits = []
+    for path, data in asar.contents.items():
+        if not path.endswith((".js", ".mjs")):
+            continue
+        for m in COLLAB_GATE_RE.finditer(data):
+            hits.append((path, m))
+    if len(hits) != 1:
+        raise PatchError("expected exactly one collab presence gate, found %d" % len(hits))
+    path, m = hits[0]
+    data = asar.contents[path]
+    insert = b".state.collab===!0||globalThis.__mldCollab===!0"
+    asar.contents[path] = data[:m.start()] + insert + data[m.end():]
+    return [path]
+
+
 def _csp_host(origin: str) -> str:
     return origin.split("://", 1)[-1].split("/", 1)[0].split(":", 1)[0]
 
@@ -336,6 +366,7 @@ def apply(asar: Asar, targets: Sequence[Target], *, app_binary: str | Path | Non
     changed = patch_js(asar, targets)
     changed += patch_install_id(asar)
     changed += patch_install_id_route(asar)
+    changed += patch_collab_gate(asar)
     origins = [t.origin for t in targets]
     changed += patch_csp(asar, origins)
     if validate:

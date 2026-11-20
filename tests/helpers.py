@@ -23,6 +23,10 @@ FILES = {
         b"client:S({host:t.host,hosts:t.hosts,rendezvous:t.rendezvous,nodeId:t.nodeId,"
         b"token:t.token,grant:t.grant,e2e:t.e2e,WebSocketImpl:e.WebSocketImpl})}}}"
     ),
+    "dist/renderer/assets/presence.js": (
+        b'function V(e){e.onFrame(A=>{if(A.type==="state"){const j=A.state.collab===!0;'
+        b'j&&e.post({type:"presenceUpdate"})}})}'
+    ),
 }
 
 

@@ -12,7 +12,7 @@ from mld import asar, patch  # noqa: E402
 from helpers import make_tree  # noqa: E402
 
 
-TARGETS = [patch.Target("pc-test", "http://10.0.0.5:4939", "token123", "e2e456", "mld-test")]
+TARGETS = [patch.Target("pc-test", "http://10.0.0.5:4939", "token123", "e2e456", "mld-test", True)]
 
 
 class PatchTests(unittest.TestCase):
@@ -35,6 +35,12 @@ class PatchTests(unittest.TestCase):
         js = self.a.get("/dist/renderer/assets/default-space.js").decode()
         self.assertIn("installId:e.installId||void 0", js)
         self.assertIn('"i":"mld-test"', js)
+
+    def test_collab_gate(self):
+        changed = patch.patch_collab_gate(self.a)
+        self.assertEqual(changed, ["/dist/renderer/assets/presence.js"])
+        js = self.a.get("/dist/renderer/assets/presence.js").decode()
+        self.assertIn("globalThis.__mldCollab===!0", js)
 
     def test_install_id_route(self):
         changed = patch.patch_install_id_route(self.a)
@@ -93,6 +99,7 @@ class PatchTests(unittest.TestCase):
               "const o=L({nodeId:'other',gatewayUrl:'wss://relay.example',grant:'G',"
               "grantAt:1,e2e:'key'});"
               "console.log(JSON.stringify({t:{host:t.host,token:t.token,e2e:t.e2e,installId:t.installId,"
+              "collabGlobal:globalThis.__mldCollab===true,"
               "gateway:t.gatewayUrl??null,grant:t.grant??null,v2:t.v2Cert??null},"
               "o:{host:o.host,gateway:o.gatewayUrl,grant:o.grant,token:o.token??null,e2e:o.e2e}}));"
         )
@@ -103,6 +110,7 @@ class PatchTests(unittest.TestCase):
         self.assertEqual(out["t"]["token"], "token123")
         self.assertEqual(out["t"]["e2e"], "e2e456")
         self.assertEqual(out["t"]["installId"], "mld-test")
+        self.assertTrue(out["t"].get("collabGlobal"))
         self.assertIsNone(out["t"]["gateway"])
         self.assertIsNone(out["t"]["grant"])
         self.assertEqual(out["t"]["v2"], "C")
@@ -116,6 +124,7 @@ class PatchTests(unittest.TestCase):
         patch.patch_js(self.a, TARGETS)
         patch.patch_install_id(self.a)
         patch.patch_install_id_route(self.a)
+        patch.patch_collab_gate(self.a)
         patch.patch_csp(self.a, ["http://10.0.0.5:4939"])
         raw = asar.build(self.a)
         asar.verify_bytes(raw)

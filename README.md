@@ -167,6 +167,17 @@ mld patch --force --restart
 Switch back with `mld mode <...> direct` and another `mld patch --force --restart`.
 The host must also have cloud attach on and a healthy platform connection.
 
+A direct target can also try the presence/collab UI without the gateway:
+
+```sh
+mld collab <node-id-or-label> on
+mld patch --force --restart
+```
+
+This forces the renderer's presence gate for that target; the host's presence
+service still decides whether the space is collaborative. If the UI does not
+activate, use gateway mode for that space.
+
 ## Commands
 
 | Command | What it does |

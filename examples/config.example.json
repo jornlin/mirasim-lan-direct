@@ -11,7 +11,8 @@
       ],
       "token": "REPLACE_WITH_HOST_TOKEN",
       "e2e": "REPLACE_WITH_HOST_E2E_PUBLIC_KEY",
-      "installId": "mld-replace-with-a-random-hex-id"
+      "installId": "mld-replace-with-a-random-hex-id",
+      "collab": true
     }
   ],
   "ssh": {
