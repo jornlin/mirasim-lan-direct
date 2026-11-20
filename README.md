@@ -28,8 +28,8 @@ LAN connection impossible out of the box:
    stable `installId`, so the host supersedes the previous row.
 
 This tool rewrites the target builder (injecting the host's address, shared
-token and E2E public key, and removing `gatewayUrl`/`grant`) and widens the CSP
-for the configured LAN origins. It finds the function by its shape, so it does
+token and E2E public key; removing `gatewayUrl`/`grant` for direct targets, or
+keeping them for hybrid) and widens the CSP for the configured LAN origins. It finds the function by its shape, so it does
 not depend on the app's hashed asset names.
 
 ## Requirements
@@ -151,46 +151,44 @@ it. `.gitignore` already excludes it. Automatic pair refresh (token/E2E/hosts)
 only runs when the config has an `ssh` target; without SSH, re-run `mld init`
 after the host changes.
 
-## Collaboration vs direct
+## Collaboration: direct, hybrid, gateway
 
-Direct mode bypasses the gateway and authenticates with the host's shared
-legacy token. Cloud collaboration — member identity, presence, shared mode — is
-carried by the **gateway/account session**, so a direct space may show
-collaboration as unavailable. If you need collaboration for a space, put it in
-gateway mode (relay) and re-apply:
-
-```sh
-mld mode <node-id-or-label> gateway
-mld patch --force --restart
-```
-
-Switch back with `mld mode <...> direct` and another `mld patch --force --restart`.
-The host must also have cloud attach on and a healthy platform connection.
-
-A direct target can also try the presence/collab UI without the gateway:
+- **direct** — LAN only. No cloud identity/presence/chat; use it when a space
+  does not need collaboration.
+- **hybrid** — LAN session/terminal/file data plus a gateway link for
+  collaboration. This is the recommended mode when a space is cloud-attached.
+- **gateway** — everything through the relay. Use it as a fallback if the
+  hybrid gateway half cannot authenticate, or when you want a single link.
 
 ```sh
-mld collab <node-id-or-label> on
-mld patch --force --restart
+mld mode <node-id-or-label> hybrid       # LAN data + collaboration
+mld mode <node-id-or-label> direct       # LAN only
+mld mode <node-id-or-label> gateway      # relay only
 ```
 
-This forces the renderer's presence gate for that target; the host's presence
-service still decides whether the space is collaborative. If the UI does not
-activate, use gateway mode for that space.
+### Hybrid details
 
-### Hybrid (experimental)
+Hybrid keeps a **gateway link** for everything collaborative — presence,
+member and channel/chat protocol, turn and attention watches, session access,
+member usage, and cloud/member administration — and sends session, terminal,
+file, snapshot and prompt data over the **LAN**.
 
-```sh
-mld mode <node-id-or-label> hybrid
-mld patch --force --restart
-```
+Two renderer details are required and are handled by the patch:
 
-Hybrid keeps a **gateway link** for collaboration/presence/turn-activity frames
-and sends session/data frames over the **LAN**. The gateway frames are limited
-to presence/state/collab types; session lists, snapshots, terminals, files and
-prompts stay on the direct link. It needs the cloud entry to still carry a
-gateway session; if the gateway side cannot authenticate, switch back to
-`gateway` mode.
+- the direct link sends `clientHello {remoteByChoice: true}` before `ready`, so
+  the host does not treat the LAN client as a same-machine local client;
+- the composite client reports `managed: true` from the gateway half, so the
+  window draws the cloud/collaboration layout rather than the local one.
+
+The space must still be cloud-attached and the gateway half must authenticate
+(the target keeps its cloud grant). If the gateway half cannot authenticate,
+switch back to `gateway` mode.
+
+### Direct collab gate (legacy)
+
+`mld collab <node> on` can force the renderer's presence gate for a direct
+target, but the host's presence service still decides whether the space is
+collaborative. Prefer `hybrid` when collaboration matters.
 
 ## Switching modes
 
@@ -202,7 +200,7 @@ mld mode <node-id-or-label> direct|gateway|hybrid
 
 - `direct` — LAN data, no gateway/collab.
 - `gateway` — relay/gateway, full collaboration.
-- `hybrid` — gateway for presence/collab frames, LAN for data.
+- `hybrid` — collaboration over the gateway, LAN for session data.
 
 Add `--stage` to only write the config (then `mld patch --force --restart`).
 A restart is required because the transport target is baked into the window's
@@ -254,6 +252,14 @@ Logs: `<config dir>/autopatch.log`. Backups: `<config dir>/backups/`.
 
 Disable: `mld agent uninstall`, or `mld restore` (which also writes a `DISABLED`
 flag). Re-enable with `mld patch` or by removing `DISABLED`.
+
+On macOS, a LaunchAgent-run interpreter may be blocked by App Management/TCC
+from writing inside `/Applications`. Manual `mld patch` still works; to keep
+automatic re-patching, grant `/usr/bin/python3` Full Disk Access (and App
+Management, if listed) in System Settings → Privacy & Security, then run
+`mld agent install` again. The installer probes the destination before quitting
+and relaunches Mirasim even if the write fails, so a denied agent cannot leave
+the app closed.
 
 ## Rollback
 

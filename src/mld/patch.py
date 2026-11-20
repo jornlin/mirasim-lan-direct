@@ -28,7 +28,7 @@ from typing import Iterable, List, Sequence
 from .asar import Asar
 
 MARK_PREFIX = "mirasim-lan-direct:"
-PATCH_REVISION = 5   # bump when the set of rewrite points changes
+PATCH_REVISION = 13   # bump when the set of rewrite points changes
 LEGACY_MARKERS = ("mirasim-lan-patch:", "mirasim-lan-patch")
 
 # function <name>(<param>){const <var>=<param>.gatewayUrl??"";return{mode:"remote",host:""
@@ -266,7 +266,21 @@ def patch_install_id_route(asar: Asar) -> List[str]:
 
 
 
-HYB_FN = b"""function HYB(t,e,c){if(!t||!t.gatewayUrl||!t.host)return c;const s=t.nodeId,i=t.grant??"",o=e&&e.gatewayTicket;const g=Dt(t.gatewayUrl,{WebSocketImpl:e.WebSocketImpl,preamble:o?async()=>[{type:"gatewayAuth",token:await o(s),nodeId:s,wake:1,idleSleep:1,rebind:1}]:[{type:"gatewayAuth",token:i,nodeId:s,wake:1,idleSleep:1,rebind:1}],managed:!0});const P=new Set(["presenceUpdate","tasksenseFocus","watchTurnActivity","requestSessionAccess","answerSessionAccess","setSessionAccess","presenceKick","memberKeyUsage","getHostUsage","watchAttention"]);const F=new Set(["presence","presenceKicked","turnActivity","sessionAccess","memberKeyUsage","hostUsage","attention"]);const subs=new Set(),conns=new Set(),cp=c.post.bind(c);let po=null,emitting=false;const emit=f=>{if(emitting)return;emitting=true;try{for(const cb of [...subs])cb(f)}finally{emitting=false}};g.onFrame(f=>{if(f&&F.has(f.type))emit(f)});c.onFrame(f=>{if(f&&!F.has(f.type))emit(f)});c.onConnection?.(()=>{for(const cb of [...conns])cb(c.connected)});const postFn=f=>{try{if(f&&P.has(f.type))return g.post(f)}catch{}return cp(f)};const frameFn=cb=>{subs.add(cb);return()=>subs.delete(cb)};const connFn=cb=>{conns.add(cb);if(c.connected)setTimeout(()=>{if(conns.has(cb))try{cb(true)}catch{}},0);return()=>conns.delete(cb)};const closeFn=()=>{try{g.close()}catch{};return c.close()};const disposeFn=()=>{try{g.dispose()}catch{};return c.dispose?.()};const reconnectFn=()=>{try{g.reconnectNow?.()}catch{};return c.reconnectNow?.()};return new Proxy(c,{get(target,prop){if(prop==="post")return po??postFn;if(prop==="onFrame")return frameFn;if(prop==="onConnection")return connFn;if(prop==="close")return closeFn;if(prop==="dispose")return disposeFn;if(prop==="reconnectNow")return reconnectFn;return c[prop]},set(target,prop,value){if(prop==="post"){po=typeof value==="function"&&value!==postFn?value:null;return!0}target[prop]=value;return!0}})}
+# Composite transport for hybrid mode.
+#
+# - ``c`` is the direct mirachannel client; it carries session/terminal/file
+#   data and produces the authoritative state frame.
+# - ``g`` is a managed gateway socket; it carries presence, chat/channel,
+#   member and other collaboration frames.
+# - ``clientHello {remoteByChoice:true}`` runs on the direct link before the
+#   client's ``ready``. Without it the host treats the LAN client as local
+#   (``clientLocal:true``) and the renderer draws its local messenger layout.
+# - ``managed:true`` comes from the gateway half so the renderer picks the
+#   cloud/collaboration layout.
+# - ``cp`` is the direct ``post`` captured before the renderer can replace it;
+#   the renderer wraps ``post`` by assignment, so forwarding through the
+#   target's current ``post`` would call the wrapper recursively.
+HYB_FN = b"""function HYB(t,e,c){if(!t||!t.gatewayUrl||!t.host)return c;const s=t.nodeId,i=t.grant??"",o=e&&e.gatewayTicket;const g=Dt(t.gatewayUrl,{WebSocketImpl:e.WebSocketImpl,preamble:o?async()=>[{type:"gatewayAuth",token:await o(s),nodeId:s,wake:1,idleSleep:1,rebind:1}]:[{type:"gatewayAuth",token:i,nodeId:s,wake:1,idleSleep:1,rebind:1}],managed:!0});const P=new Set(["presenceUpdate","tasksenseFocus","watchTurnActivity","requestSessionAccess","answerSessionAccess","setSessionAccess","presenceKick","memberKeyUsage","getHostUsage","listMemberKeyUsage","watchAttention"]);const F=new Set(["presence","presenceKicked","turnActivity","sessionAccess","memberKeyUsage","hostUsage","attention"]);const C=new Set(["createMemberWorkspace","setWorkspaceMembers","setCloudSpace","setControlledSpace","setWorkspaceArchived","machineMemberRole","setMachineMemberRole","machineShared","machineUnshared","setMachineShare","memberWorkspace","workspaceMembers"]);const K=T=>typeof T=="string"&&(T.startsWith("chat")||T.startsWith("peer")||T==="listMessagingSessions"||C.has(T));const B=new Set(["ready","clientVisibility","setStreamCadence","setSettingsPush"]);const subs=new Set(),conns=new Set(),cp=c.post.bind(c);const hello={type:"clientHello",remoteByChoice:!0};try{cp(hello)}catch{}let po=null,emitting=false;const emit=f=>{if(emitting)return;emitting=true;try{for(const cb of [...subs])cb(f)}finally{emitting=false}};g.onFrame(f=>{if(f&&(K(f.type)||F.has(f.type)))emit(f)});c.onFrame(f=>{if(f&&!F.has(f.type)&&!K(f.type))emit(f)});c.onConnection?.(()=>{if(c.connected){try{cp(hello)}catch{}}for(const cb of [...conns])cb(c.connected)});const postFn=f=>{const t=f&&f.type;if(t&&(P.has(t)||K(t))){try{return g.post(f)}catch{return cp(f)}}if(t&&B.has(t)){try{g.post(f)}catch{};return cp(f)}return cp(f)};const frameFn=cb=>{subs.add(cb);return()=>subs.delete(cb)};const connFn=cb=>{conns.add(cb);if(c.connected)setTimeout(()=>{if(conns.has(cb))try{cb(true)}catch{}},0);return()=>conns.delete(cb)};const closeFn=()=>{try{g.close()}catch{};return c.close()};const disposeFn=()=>{try{g.dispose()}catch{};return c.dispose?.()};const reconnectFn=()=>{try{g.reconnectNow?.()}catch{};return c.reconnectNow?.()};return new Proxy(c,{get(target,prop){if(prop==="post")return po??postFn;if(prop==="setHello")return g.setHello?g.setHello.bind(g):c.setHello;if(prop==="managed")return g.managed===!0||c.managed===!0;if(prop==="onFrame")return frameFn;if(prop==="onConnection")return connFn;if(prop==="close")return closeFn;if(prop==="dispose")return disposeFn;if(prop==="reconnectNow")return reconnectFn;return c[prop]},set(target,prop,value){if(prop==="post"){po=typeof value==="function"&&value!==postFn?value:null;return!0}target[prop]=value;return!0}})}
 """
 
 

@@ -1,5 +1,86 @@
 # Changelog
 
+## 0.2.1 — 2026-11-20
+
+- Documentation: recommend hybrid for LAN data + collaboration; document the
+  `clientHello remoteByChoice` / `managed` layout flags and the exact
+  gateway-vs-LAN frame split.
+- Drop a redundant collab route (`chat*` already covers it); add regression
+  coverage for `clientHello`, `managed`, and `setWorkspaceMembers` routing.
+- Probe that `app.asar` is writable before quitting, and relaunch Mirasim even
+  when backup/install fails. A macOS App Management denial no longer leaves the
+  app closed.
+
+## 0.2.0 — 2026-11-20
+
+Hybrid is now usable for a cloud space that is attached to an account.
+
+- Route the whole collaboration protocol over the gateway: `presenceUpdate`,
+  `tasksenseFocus`, turn/attention watches, session access, member usage,
+  `chat*`, `peer*`, messaging session lists, member-workspace and
+  cloud/controlled-space administration. Session, terminal, file, snapshot and
+  prompt data stays on the LAN link.
+- Send `clientHello {remoteByChoice: true}` on the direct link before the
+  client's `ready` (and on every reconnect). The host otherwise treats the
+  same-machine legacy connection as local (`clientLocal: true`), which makes
+  the renderer draw its local messenger layout.
+- Expose `managed: true` from the gateway half on the composite client; the
+  renderer only picks the cloud/collaboration layout when the client is
+  managed (or client-local).
+- Expose the gateway's `setHello`; broadcast `ready`, `clientVisibility`,
+  stream cadence and settings push to both links so the gateway connection is
+  admitted and can replay its hello after a reconnect.
+- Capture the direct `post` before the renderer can wrap it and honour a
+  `post` override, preventing the composite's self-call recursion.
+- Remove temporary diagnostics. Patch revision 12.
+
+## 0.1.15 — 2026-11-20
+
+- Hybrid: expose `managed: true` on the composite client. The renderer picks
+  its local/messenger layout (and draws the “this computer isn't a collab
+  space” card) unless `client.managed === true`; the official gateway client
+  carries that flag, the direct `Ss` client does not. Patch revision 11.
+
+## 0.1.14 — 2026-11-20
+
+- Hybrid: send `clientHello {remoteByChoice: true}` on the direct link before the
+  client's `ready`. The host otherwise sees a same-machine/loopback-style
+  legacy client (`clientLocal: true`), so the window draws the local messenger
+  layout and the “this computer isn't a collab space” card even though the
+  space is attached and collaboration is live. Direct state is authoritative
+  again; the gateway state is only used for presence/chat frames. Patch
+  revision 10.
+
+## 0.1.13 — 2026-11-20
+
+- Hybrid: make the gateway's state frame authoritative for the window UI.
+  The direct legacy state reports `chatPersonal: true` (so the UI shows “this
+  computer isn't a collab space yet”), while the gateway state carries the
+  attached/shared chat flags. Forward the full gateway state, suppress later
+  direct state frames, and replay the last gateway state to new subscribers.
+  Patch revision 9.
+
+## 0.1.12 — 2026-11-20
+
+- Hybrid: route the collaboration protocol (chat/channels/peers/messaging
+  member lists) over the gateway link, not the direct link. The direct host
+  does not serve the collab chat/member API for a legacy connection, which left
+  the members rail empty even though presence was live. Session/terminal/file
+  data still uses the LAN link. Patch revision 8.
+
+## 0.1.11 — 2026-11-20
+
+- Diagnostics: log presence roster size, viewer, and frame-subscriber count.
+
+## 0.1.10 — 2026-11-20
+
+- Hybrid: mirror the gateway's `state.collab` into the direct state (the
+  renderer's collaboration UI is gated by `hostState.collab`, which a direct
+  state may not set), expose the gateway's `setHello`, and broadcast the client
+  lifecycle frames (`ready`, `clientVisibility`, stream cadence, settings push)
+  to both links so the gateway connection is admitted for presence. Temporary
+  `MLD` console diagnostics. Patch revision 6.
+
 ## 0.1.9 — 2026-11-20
 
 - Fix the hybrid composite's real recursion: the renderer wraps a client's

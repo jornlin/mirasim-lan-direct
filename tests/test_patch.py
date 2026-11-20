@@ -99,24 +99,31 @@ class PatchTests(unittest.TestCase):
         # every non-presence post calls itself until the stack blows.
         hyb = patch.HYB_FN.decode()
         script = (
-            "const gw={posted:[],post(f){this.posted.push(f);return true},"
-            "onFrame(){},close(){},dispose(){}};"
+            "const cap={};const gw={managed:true,posted:[],post(f){this.posted.push(f);return true},"
+            "onFrame(cb){cap.gcb=cb},close(){},dispose(){}};"
             "function Dt(){return gw}"
             + hyb
             + "\nconst directPosts=[];"
               "const direct={connected:true,post(f){directPosts.push(f);return true},"
-              "onFrame(){return()=>{}},onConnection(){return()=>{}},close(){},dispose(){}};"
+              "onFrame(cb){cap.fcb=cb;return()=>{}},onConnection(cb){cap.ccb=cb;return()=>{}},"
+              "close(){},dispose(){}};"
               "const c=HYB({nodeId:'pc',gatewayUrl:'wss://g',host:'http://h'},{},{...direct});"
+              "const seen=[];c.onFrame(f=>seen.push(f.type));"
+              "cap.gcb({type:'chatOpened'});cap.gcb({type:'state',state:{collab:true}});"
+              "cap.fcb({type:'state',state:{collab:true}});cap.fcb({type:'chatOpen'});"
               "const orig=c.post;c.post=f=>orig(f);"
-              "c.post({type:'state'});c.post({type:'presenceUpdate'});"
-              "console.log(JSON.stringify({direct:directPosts.map(f=>f.type),"
+              "c.post({type:'state'});c.post({type:'presenceUpdate'});c.post({type:'chatOpen'});c.post({type:'setWorkspaceMembers'});"
+              "console.log(JSON.stringify({managed:c.managed===true,hello:directPosts[0],seen,direct:directPosts.map(f=>f.type),"
               "gw:gw.posted.map(f=>f.type)}));"
         )
         proc = subprocess.run(["node", "-e", script], capture_output=True, text=True)
         self.assertEqual(proc.returncode, 0, proc.stderr)
         out = json.loads(proc.stdout)
-        self.assertEqual(out["direct"], ["state"])
-        self.assertEqual(out["gw"], ["presenceUpdate"])
+        self.assertTrue(out["managed"])
+        self.assertEqual(out["seen"], ["chatOpened", "state"])
+        self.assertEqual(out["direct"], ["clientHello", "state"])
+        self.assertEqual(out["gw"], ["presenceUpdate", "chatOpen", "setWorkspaceMembers"])
+        self.assertEqual(out["hello"], {"type": "clientHello", "remoteByChoice": True})
 
     @unittest.skipUnless(shutil.which("node"), "node not available")
     def test_patched_function_behaviour(self):

@@ -19,8 +19,8 @@ Mirasim 桌面版打开云空间窗口时，固定先连
 4. 用共享 token 的 v2 直连会让宿主**每次连接都新增一条 legacy 设备记录**；补丁注入稳定的
    `installId`，宿主会顶掉上一条，不再无限增加。
 
-本工具改写目标构造函数（注入宿主的地址、共享 token 与 E2E 公钥，并移除
-`gatewayUrl` / `grant`），同时为配置的局域网来源放宽 CSP。目标函数按**代码形状**
+本工具改写目标构造函数（注入宿主的地址、共享 token 与 E2E 公钥；直连目标移除
+`gatewayUrl` / `grant`，混合目标保留它们），同时为配置的局域网来源放宽 CSP。目标函数按**代码形状**
 查找，不依赖带 hash 的资源文件名。
 
 ## 环境要求
@@ -105,39 +105,37 @@ mld init --node pc-... --host 192.168.1.50:4939 --host 10.0.0.5:4939 \
 - 只有配置了 SSH 目标时才会自动刷新 pair（token/E2E/地址）；否则宿主变化后需重新
   `mld init`。
 
-## 协作 vs 直连
+## 协作：direct、hybrid、gateway
 
-直连模式绕过 gateway，用宿主的共享 legacy token 认证。云协作（成员身份、在线状态、
-协作模式）由 **gateway/账号会话**承载，所以直连的空间可能显示协作不可用。需要协作时，
-把这个空间切回 gateway（中继）并重打：
-
-```sh
-mld mode <node-id-或-label> gateway
-mld patch --force --restart
-```
-
-切回直连：`mld mode <...> direct`，再 `mld patch --force --restart`。宿主还需保持
-「协作空间」开启、平台连接正常。
-
-直连目标也可以尝试不走 gateway 的协作界面：
+- **direct**：只走局域网，没有云身份/在线状态/聊天；不需要协作时使用。
+- **hybrid**：会话、终端、文件走局域网，协作能力走 gateway。空间已云附加时推荐。
+- **gateway**：全部走中继。hybrid 的网关半无法认证，或希望只保留一条链路时使用。
 
 ```sh
-mld collab <node-id-或-label> on
-mld patch --force --restart
+mld mode <node-id-或-label> hybrid       # 局域网数据 + 协作
+mld mode <node-id-或-label> direct       # 仅局域网
+mld mode <node-id-或-label> gateway      # 仅中继
 ```
 
-这会让该目标强制打开渲染层的在线状态开关；空间是否真的协作由宿主的 presence 服务
-决定。若界面仍未激活，就用 gateway 模式。
+### 混合模式细节
 
-### 混合模式（实验）
+混合模式用 **gateway 链路**承载全部协作能力：在线状态、成员/频道/聊天协议、轮次与
+关注、会话访问、成员用量、云空间与成员管理；会话、终端、文件、快照和提示词等数据
+仍走**局域网直连**。
 
-```sh
-mld mode <node-id-或-label> hybrid
-mld patch --force --restart
-```
+渲染层有两个必要细节，补丁已经处理：
 
-混合模式保留一条 **gateway 链路**只承载协作/在线状态/轮次活动帧，会话、快照、终端、
-文件和提示词等数据帧走**局域网直连**。若 gateway 侧无法认证，切回 `gateway` 模式。
+- 直连链路在 `ready` 之前发送 `clientHello { remoteByChoice: true }`，否则宿主会把
+  局域网客户端当成同机本地客户端；
+- 复合客户端从网关半暴露 `managed: true`，界面才会选择云/协作布局，而不是本机布局。
+
+空间仍需保持云附加（cloud attach），且 gateway 半必须能认证（目标保留云 grant）。
+gateway 半认证失败时，切回 `gateway` 模式。
+
+### 直连协作开关（旧）
+
+`mld collab <node> on` 可以强制打开直连目标的渲染层在线状态开关，但空间是否真的协作
+仍由宿主的 presence 服务决定。需要协作时优先用 `hybrid`。
 
 ## 一键切换模式
 
@@ -149,7 +147,7 @@ mld mode <node-id-或-label> direct|gateway|hybrid
 
 - `direct`：局域网数据，无 gateway/协作。
 - `gateway`：走 relay/gateway，完整协作。
-- `hybrid`：协作/在线状态走 gateway，数据走局域网。
+- `hybrid`：协作全部走 gateway，会话数据走局域网。
 
 加 `--stage` 只写配置（之后再 `mld patch --force --restart`）。需要重启是因为传输
 目标被编进窗口渲染层，切换要重打 `app.asar`。
@@ -196,6 +194,12 @@ mld mode <node-id-或-label> direct|gateway|hybrid
 
 停用：`mld agent uninstall`，或 `mld restore`（同时写入 `DISABLED`）。重新启用：
 `mld patch` 或删除 `DISABLED`。
+
+macOS 上，由 LaunchAgent 启动的解释器可能被「App 管理」/TCC 拦住，无法写入
+`/Applications` 内的 `app.asar`。手动 `mld patch` 不受影响；要保留自动重打，请在
+「系统设置 → 隐私与安全性」里给 `/usr/bin/python3` 授予「完全磁盘访问权限」（如列出
+「App 管理」也一并授予），再执行 `mld agent install`。安装器会在退出前探测目标是否
+可写，并在写入失败时重新拉起 Mirasim，不会把 App 留在关闭状态。
 
 ## 回滚
 

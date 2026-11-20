@@ -108,8 +108,10 @@ output to a file and use `mld init --pair pair.json`.
 ## Collaboration mode won't activate
 
 - Direct mode bypasses the gateway; collaboration identity/presence lives on the
-  gateway/account session. Switch this space to gateway mode:
-  `mld mode <node|label> gateway` then `mld patch --force --restart`.
+  gateway/account session. Use hybrid (LAN data + gateway collaboration):
+  `mld mode <node|label> hybrid` then `mld patch --force --restart`. If the
+  gateway half cannot authenticate, fall back to
+  `mld mode <node|label> gateway`.
 - Do not run a second mirasim server on a host that is already a collab space.
   An SSH/remote server staged in `~/.mirasim-remote` defaults to the same
   `MIRASIM_HOME` and competes for the space program, rendezvous registration
@@ -141,3 +143,20 @@ via `WatchPaths`). If the agent is not installed, run `mld patch --restart`.
 
 - `<config dir>/autopatch.log` — agent/CLI actions
 - `~/Library/Logs/...` or the app's own logs — renderer CSP/WebSocket errors
+
+## The autopatch agent logs `Operation not permitted`
+
+A LaunchAgent runs `/usr/bin/python3` outside the terminal that installed the
+patch. macOS App Management (TCC) may then refuse to create
+`app.asar.new` inside `/Applications/Mirasim.app`, even though `mld patch`
+works from the terminal.
+
+- Manual patching is unaffected: run `mld patch --force --restart` after an
+  app update.
+- To restore automatic re-patching, grant the background interpreter
+  **Full Disk Access** (and **App Management**, if listed) in
+  System Settings → Privacy & Security, adding `/usr/bin/python3`
+  (Cmd+Shift+G to type the path), then run `mld agent install` again.
+- The installer now relaunches Mirasim even when the write fails, so a denied
+  agent cannot leave the app closed. If the agent cannot patch, disable it with
+  `mld agent uninstall` until the permission is granted.

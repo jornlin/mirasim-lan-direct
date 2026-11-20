@@ -65,9 +65,12 @@ function L(e) {
 /*mirasim-lan-direct:<hash>*/
 ```
 
-- configured spaces get `host`, `token`, `e2e`, no `gatewayUrl`/`grant`;
+- direct spaces get `host`, `token`, `e2e`, no `gatewayUrl`/`grant`;
+- hybrid spaces additionally keep `gatewayUrl`/`grant` and carry `"h":1`
+  (plus `"c":1` for the renderer's collab gate);
 - every other cloud space is byte-for-byte behaviourally unchanged;
-- the trailing comment is the version/health marker (a hash of the targets).
+- the trailing comment is the version/health marker (a hash of the targets,
+  including the mode and patch revision).
 
 ### Stable device identity
 
@@ -82,6 +85,32 @@ target builder (`$e`) passes it through, so the v2 HELLO includes
 `client.installId`. The host revokes the previous legacy record with the same
 id and returns a new active one; the roster stays at one active row (the UI
 hides revoked rows; the on-disk history is capped at 200).
+
+### Hybrid transport
+
+A hybrid target keeps both routes. The transport dispatcher still returns a
+mirachannel client, but wraps it in a composite:
+
+- the **direct** client carries sessions, terminals, files, snapshots and
+  prompts, and its `state` frame is the window's authoritative state;
+- a managed **gateway** socket carries `presenceUpdate`, `tasksenseFocus`,
+  turn/attention watches, session access, member usage, `chat*`/`peer*`,
+  messaging session lists, member workspaces and cloud/member administration;
+- `ready`, `clientVisibility`, stream cadence and settings push are sent to
+  both links, and the gateway's `setHello` is exposed so its hello frames are
+  replayed after a reconnect;
+- the direct link sends `clientHello { remoteByChoice: true }` before `ready`
+  and on every reconnect. The host computes
+  `clientLocal = trusted && !remoteByChoice`; without it, a same-LAN legacy
+  client looks local and the renderer draws its local messenger layout.
+- the composite reports `managed: true` from the gateway half. The renderer's
+  layout chooser uses that flag (alongside `clientLocal`) to pick the
+  cloud/collaboration shell.
+
+The direct `post` is captured before the renderer can replace it. The renderer
+wraps `post` by assignment; forwarding through the target's current `post`
+would call that wrapper recursively. A proxy `set` trap records the wrapper and
+the composite always terminates at the captured original.
 
 ### Port discovery
 

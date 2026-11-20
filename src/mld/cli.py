@@ -175,15 +175,31 @@ def _apply_and_install(cfg: dict, app: system.App, targets: List[patch.Target],
     if running and not restart:
         raise RuntimeError("Mirasim is running; close it first or pass --restart")
     if running and restart:
+        # Probe the destination before quitting. A launchd-run agent may be
+        # denied by macOS App Management even though a terminal can write; do
+        # not close the app only to fail the install.
+        probe = app.asar.with_name(app.asar.name + ".mld-write-test")
+        try:
+            probe.write_bytes(b"")
+            probe.unlink()
+        except OSError as exc:
+            raise RuntimeError(
+                "cannot write next to app.asar (%s); macOS App Management/TCC "
+                "may be blocking the background agent" % exc
+            )
         if not system.quit_app(app):
             raise RuntimeError("Mirasim did not quit")
-    if source_is_installed:
-        system.backup(app, app.version)
-    system.install(app, data)
+    try:
+        if source_is_installed:
+            system.backup(app, app.version)
+        system.install(app, data)
+    finally:
+        # Never leave the app closed because a write/backup failed (for example
+        # when macOS App Management denies a launchd-run agent).
+        if running and restart:
+            system.launch(app)
     if log:
         system.log("patched %s (%s): %s" % (app.root, app.version, result.marker))
-    if running and restart:
-        system.launch(app)
     return result
 
 
