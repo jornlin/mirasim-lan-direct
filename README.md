@@ -198,6 +198,52 @@ does not affect them, and the host serves both at once. Hybrid fixes the chat
 identity through its gateway link but its LAN data link still carries the
 shared token, so it is also owner-device-only.
 
+### Members with their own account (grant mode)
+
+The host also accepts a platform-signed **account grant** on a direct LAN
+connection:
+
+```js
+Flo: grant -> accountId = claims.sub (must be the host account or a shared account)
+```
+
+If a member can obtain such a grant (`sub` = their account, `aud` = the host's
+node id), configure it instead of the shared token:
+
+```sh
+mld member <node-id-or-label> --grant-file member.jwt   # or --grant <jwt>
+mld check                                               # shows sub + expiry
+```
+
+The target keeps `host`/`e2e`/`grant`, drops `token`/`gatewayUrl`, and still
+gets the remote/managed renderer flags. The host records `via=account`, so
+chat, presence and role are the member's own, not the owner's.
+
+Requirements:
+
+- the member's account must be in the host's `mirachannelSharedAccounts`
+  (join the space first);
+- the grant must come from Mirasim's account/device pairing or cloud flow — the
+  tool does not mint it. The desktop cloud path currently exposes a gateway
+  session, not an account grant; obtaining the grant is the remaining
+  integration step. Until then, other members should use the official gateway
+  client.
+
+On a member device, inspect the local cloud RPC (read-only; tokens and email
+are redacted):
+
+```sh
+node scripts/probe-cloud.mjs
+# no Node? Electron as Node:
+ELECTRON_RUN_AS_NODE=1 /Applications/Mirasim.app/Contents/MacOS/Mirasim scripts/probe-cloud.mjs
+```
+
+Look for a token whose claims contain `sub` (the member account), `aud` (the
+host node id) and `exp`. Save it as `member.jwt` and pass it to `mld member`.
+If only an opaque gateway session appears, the cloud is not exposing an
+account grant to the desktop client; the host-side member bridge is the
+remaining option.
+
 ### Direct collab gate (legacy)
 
 `mld collab <node> on` can force the renderer's presence gate for a direct
@@ -227,6 +273,7 @@ renderer; changing it rebuilds `app.asar`.
 | `mld init` | fetch/import target data and write the config |
 | `mld patch [--force] [--dry-run] [--restart]` | build and install the renderer patch |
 | `mld mode <node> direct\|gateway\|hybrid` | switch a space and apply it (`--stage` to only configure) |
+| `mld member <node> --grant-file <jwt>` | use a member account grant for direct LAN |
 | `mld check` | show app version, installed marker, target mode/reachability, agent state |
 | `mld autopatch` | agent entry point: patch only if missing/stale/unreachable |
 | `mld restore` | restore the pristine `app.asar` and disable the agent |

@@ -143,6 +143,44 @@ gateway 半认证失败时，切回 `gateway` 模式。
 补丁不影响他们，宿主可以同时服务两边。Hybrid 的聊天身份走网关是正确的，但它的局域网
 数据链路仍带共享 token，所以同样只适合 owner 自己的设备。
 
+### 成员用自己的账号（grant 模式）
+
+宿主在局域网直连上也接受平台签名的**账号 grant**：
+
+```js
+Flo: grant -> accountId = claims.sub（必须是宿主账号或共享账号）
+```
+
+如果成员能拿到这样的 grant（`sub` = 成员账号，`aud` = 宿主 nodeId），就用它替代
+共享 token：
+
+```sh
+mld member <node-id-或-label> --grant-file member.jwt   # 或 --grant <jwt>
+mld check                                               # 显示 sub 与过期时间
+```
+
+目标保留 `host`/`e2e`/`grant`，去掉 `token`/`gatewayUrl`，并继续带远程/托管渲染标志。
+宿主会记录 `via=account`，聊天、presence 和角色都是成员本人，而不是 owner。
+
+前提：
+
+- 成员账号必须在宿主的 `mirachannelSharedAccounts` 里（先加入空间）；
+- grant 必须来自 Mirasim 的账号/设备配对或云端流程，工具不负责签发。桌面云端路径
+  目前只给 gateway session，不给 account grant；拿到 grant 是剩余要打通的一步。
+  在此之前，其他成员继续用官方 gateway 客户端。
+
+在成员设备上可以只读探测本机云 RPC（token 与邮箱会脱敏）：
+
+```sh
+node scripts/probe-cloud.mjs
+# 没有 Node 时用 Electron 当 Node：
+ELECTRON_RUN_AS_NODE=1 /Applications/Mirasim.app/Contents/MacOS/Mirasim scripts/probe-cloud.mjs
+```
+
+找 claims 里带 `sub`（成员账号）、`aud`（宿主 nodeId）、`exp` 的 token；存成
+`member.jwt` 后交给 `mld member`。如果只看到不透明的 gateway session，说明云端没有向
+桌面客户端暴露 account grant，下一步只能做宿主侧成员认证桥。
+
 ### 直连协作开关（旧）
 
 `mld collab <node> on` 可以强制打开直连目标的渲染层在线状态开关，但空间是否真的协作
@@ -170,6 +208,7 @@ mld mode <node-id-或-label> direct|gateway|hybrid
 | `mld init` | 拉取/导入目标数据并写配置 |
 | `mld patch [--force] [--dry-run] [--restart]` | 生成并安装渲染层补丁 |
 | `mld mode <node> direct\|gateway\|hybrid` | 切换空间并应用（`--stage` 只改配置） |
+| `mld member <node> --grant-file <jwt>` | 用成员账号 grant 做局域网直连 |
 | `mld check` | 显示 App 版本、已装标记、目标模式/可达性、代理状态 |
 | `mld autopatch` | 代理入口：缺失/过期/不可达时才处理 |
 | `mld restore` | 恢复原始 `app.asar` 并停用自动重打 |

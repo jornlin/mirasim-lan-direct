@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import json
 import os
 import shutil
@@ -65,9 +66,11 @@ def _resolve_targets(cfg: dict) -> Tuple[List[patch.Target], bool]:
                 entry["origin"] = origin
                 changed = True
         hybrid = mode == "hybrid"
+        grant = entry.get("grant") or ""
         out.append(patch.Target(entry["nodeId"], origin, entry["token"], entry["e2e"],
                                entry.get("installId") or "",
-                               bool(entry.get("collab")) or hybrid, hybrid))
+                               bool(entry.get("collab")) or hybrid or bool(grant),
+                               hybrid, grant))
     if not out and not (cfg.get("targets") or []):
         raise ValueError("no targets configured; run `mld init`")
     return out, changed
@@ -385,8 +388,17 @@ def cmd_check(args) -> int:
     for t in targets:
         up = hostinfo.reachable(t.origin)
         ok = ok and up
+        label = modes.get(t.node_id, "direct")
+        if t.grant:
+            try:
+                claims = _grant_claims(t.grant)
+                when = datetime.fromtimestamp(float(claims.get("exp") or 0), timezone.utc)\
+                    .strftime("%Y-%m-%dT%H:%M:%SZ")
+                label = "member %s exp %s" % (claims.get("sub"), when)
+            except Exception:
+                label = "member grant"
         print("target:     %s -> %s  %s [%s]" %
-              (t.node_id, t.origin, "reachable" if up else "UNREACHABLE", modes.get(t.node_id, "direct")))
+              (t.node_id, t.origin, "reachable" if up else "UNREACHABLE", label))
     print("agent:      %s" % agent.status())
 
     if current is not None and _healthy(current, targets):
@@ -459,6 +471,73 @@ def cmd_collab(args) -> int:
     print("%s: collab presence %s" % (match.get("label") or match["nodeId"], args.state))
     print("apply with: mld patch --force --restart")
     return 0
+
+
+def _grant_claims(jwt: str) -> dict:
+    """Decode the (host-verified) account grant without validating its signature."""
+    parts = (jwt or "").strip().split(".")
+    if len(parts) < 2:
+        raise ValueError("not a JWT account grant")
+    payload = parts[1] + "=" * (-len(parts[1]) % 4)
+    try:
+        data = json.loads(base64.urlsafe_b64decode(payload))
+    except Exception as exc:
+        raise ValueError("malformed grant payload: %s" % exc)
+    if not isinstance(data, dict):
+        raise ValueError("malformed grant payload")
+    return data
+
+
+def cmd_member(args) -> int:
+    cfg = _load_cfg()
+    match = None
+    for entry in cfg.get("targets") or []:
+        if entry.get("nodeId") == args.target or entry.get("label") == args.target:
+            match = entry
+            break
+    if match is None:
+        raise SystemExit("no configured target matches %r" % args.target)
+    jwt = args.grant
+    if not jwt and args.grant_file:
+        jwt = Path(args.grant_file).expanduser().read_text(encoding="utf-8").strip()
+    if not jwt:
+        raise SystemExit("pass --grant <jwt> or --grant-file <path>")
+    try:
+        claims = _grant_claims(jwt)
+    except ValueError as exc:
+        raise SystemExit(str(exc))
+    sub = claims.get("sub")
+    aud = claims.get("aud")
+    exp = claims.get("exp")
+    if not isinstance(sub, str) or not sub:
+        raise SystemExit("grant has no sub (member account)")
+    if aud != match["nodeId"]:
+        raise SystemExit("grant aud %r does not match node %s" % (aud, match["nodeId"]))
+    if not isinstance(exp, (int, float)) or exp <= time.time():
+        raise SystemExit("grant is missing exp or already expired; obtain a fresh one")
+    match["grant"] = jwt
+    match["token"] = ""
+    match["mode"] = "direct"
+    match["collab"] = True
+    _save_cfg(cfg)
+    ssh_target = (cfg.get("ssh") or {}).get("target")
+    if ssh_target:
+        try:
+            shared = hostinfo.shared_accounts(ssh_target)
+            if sub not in shared:
+                print("warning: host shared accounts do not list %s yet; "
+                      "join the space from that account first" % sub)
+        except Exception as exc:
+            print("warning: could not check host shared accounts: %s" % exc)
+    when = datetime.fromtimestamp(exp, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    print("%s: member grant for %s (expires %s)" %
+          (match.get("label") or match["nodeId"], sub, when))
+    if args.stage:
+        print("staged; run: mld patch --force --restart")
+        return 0
+    print("applying (Mirasim will restart)…")
+    return cmd_patch(argparse.Namespace(app=None, force=True, dry_run=False,
+                                        restart=True, original=None))
 
 
 def cmd_agent(args) -> int:
@@ -540,6 +619,13 @@ def build_parser() -> argparse.ArgumentParser:
     cb.add_argument("target", help="node id or label")
     cb.add_argument("state", choices=["on", "off"])
     cb.set_defaults(func=cmd_collab)
+
+    mb = sub.add_parser("member", help="use a member's account grant for LAN direct (no shared token)")
+    mb.add_argument("target", help="node id or label")
+    mb.add_argument("--grant", help="account grant JWT (sub=member account, aud=node id)")
+    mb.add_argument("--grant-file", help="read the grant JWT from a file")
+    mb.add_argument("--stage", action="store_true", help="only write the config; do not patch/restart")
+    mb.set_defaults(func=cmd_member)
 
     m = sub.add_parser("mode", help="choose direct LAN or gateway/relay (collaboration) for a space")
     m.add_argument("target", help="node id or label")

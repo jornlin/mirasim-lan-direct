@@ -152,6 +152,38 @@ class PatchTests(unittest.TestCase):
         self.assertEqual(out["posts"], ["clientHello", "chatOpen"])
 
     @unittest.skipUnless(shutil.which("node"), "node not available")
+    def test_member_grant_target(self):
+        # A member grant replaces the shared token and must not be overridden
+        # by the cloud entry's gateway grant or gatewayUrl.
+        jwt = ("eyJhbGciOiJIUzI1NiJ9."
+               "eyJzdWIiOiJ1c3JfdGVzdCIsImF1ZCI6InBjLXRlc3QiLCJleHAiOjk5OTk5OTk5OTl9.sig")
+        target = patch.Target("pc-test", "http://10.0.0.5:4939", "", "e2e456",
+                              "mld-test", True, False, jwt)
+        patch.patch_js(self.a, [target])
+        js = self.a.get("/dist/renderer/assets/default-space.js").decode()
+        start = js.index("function L(")
+        end = js.index("/*mirasim-lan-direct:")
+        fn = js[start:end]
+        script = (
+            'const M="wss://rendezvous.example/x";'
+            "function K(e){return !!e.grant}function N(e){return e.v2Cert?{v2Cert:e.v2Cert}:{}}"
+            + fn
+            + "\nconst t=L({nodeId:'pc-test',gatewayUrl:'wss://relay.example',"
+              "grant:'gateway-session',token:'shared-token',e2e:'cloud-e2e'});"
+              "console.log(JSON.stringify({host:t.host,token:t.token,grant:t.grant,"
+              "gateway:t.gatewayUrl??null,collab:t.collab===true,e2e:t.e2e}));"
+        )
+        proc = subprocess.run(["node", "-e", script], capture_output=True, text=True)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        out = json.loads(proc.stdout)
+        self.assertEqual(out["host"], "http://10.0.0.5:4939")
+        self.assertEqual(out["token"], "")
+        self.assertEqual(out["grant"], jwt)
+        self.assertIsNone(out["gateway"])
+        self.assertTrue(out["collab"])
+        self.assertEqual(out["e2e"], "e2e456")
+
+    @unittest.skipUnless(shutil.which("node"), "node not available")
     def test_patched_function_behaviour(self):
         patch.patch_js(self.a, TARGETS)
         js = self.a.get("/dist/renderer/assets/default-space.js").decode()

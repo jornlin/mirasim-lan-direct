@@ -28,7 +28,7 @@ from typing import Iterable, List, Sequence
 from .asar import Asar
 
 MARK_PREFIX = "mirasim-lan-direct:"
-PATCH_REVISION = 14   # bump when the set of rewrite points changes
+PATCH_REVISION = 15   # bump when the set of rewrite points changes
 LEGACY_MARKERS = ("mirasim-lan-patch:", "mirasim-lan-patch")
 
 # function <name>(<param>){const <var>=<param>.gatewayUrl??"";return{mode:"remote",host:""
@@ -51,12 +51,15 @@ class Target:
     install_id: str = ""  # stable client id, so the host supersedes the previous device row
     collab: bool = False  # enable the collab presence gate for this direct target
     hybrid: bool = False  # direct data + gateway control/presence
+    grant: str = ""       # platform account grant: identify as this member, no shared token
 
     def as_config(self) -> dict:
         cfg = {"o": self.origin, "t": self.token, "k": self.e2e}
         if self.install_id:
             cfg["i"] = self.install_id
-        if self.collab or self.hybrid:
+        if self.grant:
+            cfg["g"] = self.grant
+        if self.collab or self.hybrid or self.grant:
             cfg["c"] = 1
         if self.hybrid:
             cfg["h"] = 1
@@ -73,7 +76,7 @@ class PatchResult:
 def target_hash(targets: Sequence[Target]) -> str:
     canonical = json.dumps(
         {"rev": PATCH_REVISION,
-         "targets": sorted((t.node_id, t.origin, t.token, t.e2e, t.install_id, t.collab, t.hybrid)
+         "targets": sorted((t.node_id, t.origin, t.token, t.e2e, t.install_id, t.collab, t.hybrid, t.grant)
                            for t in targets)},
         separators=(",", ":"),
     )
@@ -172,10 +175,12 @@ def _new_function(name: str, param: str, targets: Sequence[Target],
     code = (
         f'function {name}({param}){{const {tbl}={table};const {ent}={tbl}[{param}.nodeId];'
         f'const h={ent}&&{ent}.h;'
+        f'const g={ent}&&{ent}.g;'
         f'if({ent}&&{ent}.c)globalThis.__mldCollab=true;'
         f'return{{mode:"remote",host:{ent}?{ent}.o:({param}.host??""),'
-        f'token:{ent}?{ent}.t:({param}.token??""),'
+        f'token:g?"":({ent}?{ent}.t:({param}.token??"")),'
         f'...((!{ent}||h)?({grant_fn}({param})&&!{param}.token?{{grant:{param}.grant}}:{{}}):{{}}),'
+        f'...g?{{grant:g}}:{{}},'
         f'...{param}.grantAt>=0?{{grantAt:{param}.grantAt}}:{{}},'
         f'...((!{ent}||h)&&{param}.gatewayUrl)?{{gatewayUrl:{param}.gatewayUrl}}:{{}},'
         f'...{ent}&&{ent}.c?{{collab:!0}}:{{}},'

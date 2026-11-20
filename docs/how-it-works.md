@@ -168,6 +168,34 @@ an admin bearer secret: distributing it to another member would give them the
 owner's data access. Other members should use the official gateway client,
 which carries their own viewer identity.
 
+## Member grants
+
+The host's `Flo` authenticator also accepts a platform-signed account grant:
+
+```js
+grant -> verify with enrollKey.pub
+      -> aud == nodeId
+      -> sub == host account or sharedAccounts[]
+      -> via "account", accountId = sub
+```
+
+The member then appears through `wn`/`identify` as their own account with the
+shared space's role, not as the host owner. A target can carry such a grant:
+
+```js
+{
+  mode: "remote", host: "http://192.168.1.50:4970",
+  token: "", grant: "<jwt>", e2e: "<host key>",
+  nodeId: "...", collab: true
+}
+```
+
+The direct client still sends `clientHello {remoteByChoice:true}` and the
+composite reports `managed:true`, so the renderer uses the remote collaboration
+layout. The grant must be issued by Mirasim's account/device pairing or cloud
+flow; the tool does not mint it. `mld member` only validates its JWT shape,
+`aud` and `exp`.
+
 ## Backups and rebuild sources
 
 - When the installed `app.asar` is unpatched, it is the source and is backed up

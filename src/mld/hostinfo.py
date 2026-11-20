@@ -87,6 +87,28 @@ def _fetch_once(ssh_target: str, port: int, timeout: int) -> dict:
     return pair
 
 
+def shared_accounts(ssh_target: str, timeout: int = 15) -> List[str]:
+    """Read the host's mirachannelSharedAccounts setting (member account ids)."""
+    if not ssh_target:
+        return []
+    snippet = (
+        'python3 - <<"PY"\n'
+        'import json,os\n'
+        'p=os.path.expanduser("~/.mirasim/setting.json")\n'
+        'd=json.load(open(p))\n'
+        'v=d.get("mirachannelSharedAccounts") or []\n'
+        'print(json.dumps(v if isinstance(v,list) else []))\n'
+        'PY'
+    )
+    proc = _ssh(ssh_target, snippet, timeout)
+    if proc.returncode != 0:
+        raise RuntimeError((proc.stderr or proc.stdout).strip()[:300] or "ssh failed")
+    try:
+        return json.loads(proc.stdout.strip() or "[]")
+    except ValueError:
+        return []
+
+
 def fetch_pair(ssh_target: str, port: Optional[int] = None, timeout: int = 20) -> Tuple[dict, int]:
     """Read /mirachannel/pair from the host, discovering the server port.
 

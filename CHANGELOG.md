@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.3.0 — 2026-11-20
+
+- Member-grant mode: `mld member <node> --grant-file <jwt>` uses a
+  platform-signed account grant (`sub` = member account, `aud` = host node)
+  instead of the shared token. The host's `Flo` account path records
+  `via=account`, so `wn`/`identify` return the member and their role; the
+  target keeps `host`/`e2e`/`grant` and no `gatewayUrl`/`token`.
+- The renderer still gets `clientHello remoteByChoice`, `managed:true` and the
+  collaboration layout. `mld check` shows the grant subject and expiry.
+- Requires the member's account to be in the host's
+  `mirachannelSharedAccounts` (join the space first). The grant itself must be
+  obtained from Mirasim's account/device pairing or cloud flow; the tool does
+  not mint it. Until a grant is available, members stay on the official gateway.
+
 ## 0.2.2 — 2026-11-20
 
 - Direct collaboration without a gateway: a `direct` target with `collab`
