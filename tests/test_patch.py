@@ -36,6 +36,12 @@ class PatchTests(unittest.TestCase):
         self.assertIn("installId:e.installId||void 0", js)
         self.assertIn('"i":"mld-test"', js)
 
+    def test_install_id_route(self):
+        changed = patch.patch_install_id_route(self.a)
+        self.assertEqual(changed, ["/dist/renderer/assets/strategy.js"])
+        js = self.a.get("/dist/renderer/assets/strategy.js").decode()
+        self.assertIn("...t.installId?{installId:t.installId}:{},", js)
+
     def test_csp_and_idempotency(self):
         changed = patch.patch_csp(self.a, ["http://10.0.0.5:4939"])
         self.assertEqual(changed, ["/dist/renderer/index.html"])
@@ -109,6 +115,7 @@ class PatchTests(unittest.TestCase):
     def test_full_build_loads(self):
         patch.patch_js(self.a, TARGETS)
         patch.patch_install_id(self.a)
+        patch.patch_install_id_route(self.a)
         patch.patch_csp(self.a, ["http://10.0.0.5:4939"])
         raw = asar.build(self.a)
         asar.verify_bytes(raw)

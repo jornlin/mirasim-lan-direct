@@ -18,6 +18,11 @@ FILES = {
         b'rendezvous:e.rendezvous||void 0,nodeId:e.nodeId||void 0,e2e:e.e2e||void 0,'
         b'grant:e.grant||void 0,gatewayUrl:e.gatewayUrl||void 0,...N(e)}}'
     ),
+    "dist/renderer/assets/strategy.js": (
+        b'function X(t,e){if(t?.mode==="remote"&&t.host){return{kind:"mirachannel",'
+        b"client:S({host:t.host,hosts:t.hosts,rendezvous:t.rendezvous,nodeId:t.nodeId,"
+        b"token:t.token,grant:t.grant,e2e:t.e2e,WebSocketImpl:e.WebSocketImpl})}}}"
+    ),
 }
 
 

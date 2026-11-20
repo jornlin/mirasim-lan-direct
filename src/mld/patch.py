@@ -28,6 +28,7 @@ from typing import Iterable, List, Sequence
 from .asar import Asar
 
 MARK_PREFIX = "mirasim-lan-direct:"
+PATCH_REVISION = 2   # bump when the set of rewrite points changes
 LEGACY_MARKERS = ("mirasim-lan-patch:", "mirasim-lan-patch")
 
 # function <name>(<param>){const <var>=<param>.gatewayUrl??"";return{mode:"remote",host:""
@@ -65,7 +66,9 @@ class PatchResult:
 
 def target_hash(targets: Sequence[Target]) -> str:
     canonical = json.dumps(
-        sorted((t.node_id, t.origin, t.token, t.e2e, t.install_id) for t in targets),
+        {"rev": PATCH_REVISION,
+         "targets": sorted((t.node_id, t.origin, t.token, t.e2e, t.install_id)
+                           for t in targets)},
         separators=(",", ":"),
     )
     return hashlib.sha256(canonical.encode()).hexdigest()[:12]
@@ -223,6 +226,36 @@ def patch_install_id(asar: Asar) -> List[str]:
     return [path]
 
 
+ROUTE_RE = re.compile(
+    rb'client:([A-Za-z_$][\w$]*)\(\{host:([A-Za-z_$][\w$]*)\.host,hosts:\2\.hosts,'
+    rb'rendezvous:\2\.rendezvous,nodeId:\2\.nodeId,token:\2\.token,grant:\2\.grant,e2e:\2\.e2e,'
+)
+
+
+def patch_install_id_route(asar: Asar) -> List[str]:
+    """Pass installId into the mirachannel client options.
+
+    The transport dispatcher builds the switchable-client options field by
+    field; without this insertion the target's installId never reaches the v2
+    HELLO, and the host stores a new device on every connection.
+    """
+    hits = []
+    for path, data in asar.contents.items():
+        if not path.endswith((".js", ".mjs")):
+            continue
+        for m in ROUTE_RE.finditer(data):
+            hits.append((path, m))
+    if len(hits) != 1:
+        raise PatchError("expected exactly one mirachannel route builder, found %d" % len(hits))
+    path, m = hits[0]
+    data = asar.contents[path]
+    start, end = m.start(), m.end()
+    param = m.group(2).decode()
+    insert = ("...%s.installId?{installId:%s.installId}:{}," % (param, param)).encode()
+    asar.contents[path] = data[:end] + insert + data[end:]
+    return [path]
+
+
 def _csp_host(origin: str) -> str:
     return origin.split("://", 1)[-1].split("/", 1)[0].split(":", 1)[0]
 
@@ -302,6 +335,7 @@ def apply(asar: Asar, targets: Sequence[Target], *, app_binary: str | Path | Non
           node_binary: str | Path | None = None, validate: bool = True) -> PatchResult:
     changed = patch_js(asar, targets)
     changed += patch_install_id(asar)
+    changed += patch_install_id_route(asar)
     origins = [t.origin for t in targets]
     changed += patch_csp(asar, origins)
     if validate:
