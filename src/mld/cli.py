@@ -362,13 +362,15 @@ def cmd_check(args) -> int:
     print("expected:   %s" % want)
     ok = True
     direct_nodes = {t.node_id for t in targets}
+    modes = {e.get("nodeId"): (e.get("mode") or "direct") for e in cfg.get("targets") or []}
     for entry in cfg.get("targets") or []:
         if entry.get("nodeId") not in direct_nodes:
             print("target:     %s -> gateway/relay (collab mode)" % entry.get("nodeId"))
     for t in targets:
         up = hostinfo.reachable(t.origin)
         ok = ok and up
-        print("target:     %s -> %s  %s" % (t.node_id, t.origin, "reachable" if up else "UNREACHABLE"))
+        print("target:     %s -> %s  %s [%s]" %
+              (t.node_id, t.origin, "reachable" if up else "UNREACHABLE", modes.get(t.node_id, "direct")))
     print("agent:      %s" % agent.status())
 
     if current is not None and _healthy(current, targets):
@@ -419,8 +421,12 @@ def cmd_mode(args) -> int:
     match["mode"] = args.mode
     _save_cfg(cfg)
     print("%s is now %s" % (match.get("label") or match["nodeId"], args.mode))
-    print("apply with: mld patch --force --restart")
-    return 0
+    if args.stage:
+        print("staged; run: mld patch --force --restart")
+        return 0
+    print("applying (Mirasim will restart)…")
+    return cmd_patch(argparse.Namespace(app=None, force=True, dry_run=False,
+                                        restart=True, original=None))
 
 
 def cmd_collab(args) -> int:
@@ -522,6 +528,7 @@ def build_parser() -> argparse.ArgumentParser:
     m = sub.add_parser("mode", help="choose direct LAN or gateway/relay (collaboration) for a space")
     m.add_argument("target", help="node id or label")
     m.add_argument("mode", choices=["direct", "gateway", "hybrid"])
+    m.add_argument("--stage", action="store_true", help="only write the config; do not patch/restart")
     m.set_defaults(func=cmd_mode)
 
     ag = sub.add_parser("agent", help="install/remove the background re-patcher")

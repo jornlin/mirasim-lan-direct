@@ -139,13 +139,29 @@ mld patch --force --restart
 混合模式保留一条 **gateway 链路**只承载协作/在线状态/轮次活动帧，会话、快照、终端、
 文件和提示词等数据帧走**局域网直连**。若 gateway 侧无法认证，切回 `gateway` 模式。
 
+## 一键切换模式
+
+一条命令切换并应用（会重启 Mirasim）：
+
+```sh
+mld mode <node-id-或-label> direct|gateway|hybrid
+```
+
+- `direct`：局域网数据，无 gateway/协作。
+- `gateway`：走 relay/gateway，完整协作。
+- `hybrid`：协作/在线状态走 gateway，数据走局域网。
+
+加 `--stage` 只写配置（之后再 `mld patch --force --restart`）。需要重启是因为传输
+目标被编进窗口渲染层，切换要重打 `app.asar`。
+
 ## 命令
 
 | 命令 | 作用 |
 |---|---|
 | `mld init` | 拉取/导入目标数据并写配置 |
 | `mld patch [--force] [--dry-run] [--restart]` | 生成并安装渲染层补丁 |
-| `mld check` | 显示 App 版本、已装标记、目标可达性、代理状态 |
+| `mld mode <node> direct\|gateway\|hybrid` | 切换空间并应用（`--stage` 只改配置） |
+| `mld check` | 显示 App 版本、已装标记、目标模式/可达性、代理状态 |
 | `mld autopatch` | 代理入口：缺失/过期/不可达时才处理 |
 | `mld restore` | 恢复原始 `app.asar` 并停用自动重打 |
 | `mld agent install\|uninstall\|status` | 管理后台重打代理 |

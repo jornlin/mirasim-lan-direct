@@ -192,13 +192,30 @@ prompts stay on the direct link. It needs the cloud entry to still carry a
 gateway session; if the gateway side cannot authenticate, switch back to
 `gateway` mode.
 
+## Switching modes
+
+One command switches a space and applies it (Mirasim restarts):
+
+```sh
+mld mode <node-id-or-label> direct|gateway|hybrid
+```
+
+- `direct` — LAN data, no gateway/collab.
+- `gateway` — relay/gateway, full collaboration.
+- `hybrid` — gateway for presence/collab frames, LAN for data.
+
+Add `--stage` to only write the config (then `mld patch --force --restart`).
+A restart is required because the transport target is baked into the window's
+renderer; changing it rebuilds `app.asar`.
+
 ## Commands
 
 | Command | What it does |
 |---|---|
 | `mld init` | fetch/import target data and write the config |
 | `mld patch [--force] [--dry-run] [--restart]` | build and install the renderer patch |
-| `mld check` | show app version, installed marker, target reachability, agent state |
+| `mld mode <node> direct\|gateway\|hybrid` | switch a space and apply it (`--stage` to only configure) |
+| `mld check` | show app version, installed marker, target mode/reachability, agent state |
 | `mld autopatch` | agent entry point: patch only if missing/stale/unreachable |
 | `mld restore` | restore the pristine `app.asar` and disable the agent |
 | `mld agent install\|uninstall\|status` | manage the background re-patcher |

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.6 — 2026-11-20
+
+- `mld mode <target> <mode>` now applies the switch (patch + restart) in one
+  command; `--stage` only writes the config. `mld check` prints each target's
+  mode.
+
 ## 0.1.5 — 2026-11-20
 
 - Experimental `hybrid` mode: a composite transport keeps the gateway link for
