@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.7 — 2026-11-20
+
+- Fix the hybrid composite's initial `onConnection(false)` callback recursion
+  (renderer `Maximum call stack size exceeded`); connection callbacks are now
+  delivered asynchronously and only for an already-connected link. Stable
+  method identities avoid re-subscription churn. Patch revision 3.
+
 ## 0.1.6 — 2026-11-20
 
 - `mld mode <target> <mode>` now applies the switch (patch + restart) in one

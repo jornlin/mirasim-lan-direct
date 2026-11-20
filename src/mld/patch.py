@@ -28,7 +28,7 @@ from typing import Iterable, List, Sequence
 from .asar import Asar
 
 MARK_PREFIX = "mirasim-lan-direct:"
-PATCH_REVISION = 2   # bump when the set of rewrite points changes
+PATCH_REVISION = 3   # bump when the set of rewrite points changes
 LEGACY_MARKERS = ("mirasim-lan-patch:", "mirasim-lan-patch")
 
 # function <name>(<param>){const <var>=<param>.gatewayUrl??"";return{mode:"remote",host:""
