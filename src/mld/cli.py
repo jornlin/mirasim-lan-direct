@@ -38,6 +38,8 @@ def _app(cfg: dict, explicit: Optional[str]) -> system.App:
 def _ensure_install_ids(cfg: dict) -> bool:
     changed = False
     for entry in cfg.get("targets") or []:
+        if (entry.get("mode") or "direct").lower() == "gateway":
+            continue
         if not entry.get("installId"):
             entry["installId"] = "mld-" + uuid.uuid4().hex
             changed = True
@@ -49,6 +51,8 @@ def _resolve_targets(cfg: dict) -> Tuple[List[patch.Target], bool]:
     out: List[patch.Target] = []
     changed = False
     for entry in cfg.get("targets") or []:
+        if (entry.get("mode") or "direct").lower() == "gateway":
+            continue
         hosts = entry.get("hosts") or []
         origin = entry.get("origin")
         if not origin or not hostinfo.reachable(origin):
@@ -61,7 +65,7 @@ def _resolve_targets(cfg: dict) -> Tuple[List[patch.Target], bool]:
                 changed = True
         out.append(patch.Target(entry["nodeId"], origin, entry["token"], entry["e2e"],
                                entry.get("installId") or ""))
-    if not out:
+    if not out and not (cfg.get("targets") or []):
         raise ValueError("no targets configured; run `mld init`")
     return out, changed
 
@@ -260,7 +264,14 @@ def cmd_patch(args) -> int:
     if changed or install_changed:
         _save_cfg(cfg)
     current = asar_mod.load(app.asar)
-    if not args.force and _healthy(current, targets):
+    if not targets:
+        if not patch.looks_patched(current):
+            print("no direct targets (all spaces are in gateway mode); nothing to patch")
+            return 0
+        if not args.force:
+            print("all targets are in gateway mode; use --force to rebuild without direct routing")
+            return 0
+    if not args.force and targets and _healthy(current, targets):
         print("already patched for this configuration; nothing to do")
         return 0
     if not args.force and patch.looks_patched(current, [t.origin for t in targets]):
@@ -345,6 +356,10 @@ def cmd_check(args) -> int:
     want = patch.marker_for(targets)
     print("expected:   %s" % want)
     ok = True
+    direct_nodes = {t.node_id for t in targets}
+    for entry in cfg.get("targets") or []:
+        if entry.get("nodeId") not in direct_nodes:
+            print("target:     %s -> gateway/relay (collab mode)" % entry.get("nodeId"))
     for t in targets:
         up = hostinfo.reachable(t.origin)
         ok = ok and up
@@ -384,6 +399,22 @@ def cmd_restore(args) -> int:
     system.install(app, src.read_bytes())
     print("restored %s (version %s)" % (src, app.version))
     system.launch(app)
+    return 0
+
+
+def cmd_mode(args) -> int:
+    cfg = _load_cfg()
+    match = None
+    for entry in cfg.get("targets") or []:
+        if entry.get("nodeId") == args.target or entry.get("label") == args.target:
+            match = entry
+            break
+    if match is None:
+        raise SystemExit("no configured target matches %r" % args.target)
+    match["mode"] = args.mode
+    _save_cfg(cfg)
+    print("%s is now %s" % (match.get("label") or match["nodeId"], args.mode))
+    print("apply with: mld patch --force --restart")
     return 0
 
 
@@ -460,6 +491,11 @@ def build_parser() -> argparse.ArgumentParser:
     r.add_argument("--app")
     r.add_argument("--original")
     r.set_defaults(func=cmd_restore)
+
+    m = sub.add_parser("mode", help="choose direct LAN or gateway/relay (collaboration) for a space")
+    m.add_argument("target", help="node id or label")
+    m.add_argument("mode", choices=["direct", "gateway"])
+    m.set_defaults(func=cmd_mode)
 
     ag = sub.add_parser("agent", help="install/remove the background re-patcher")
     ag.add_argument("action", choices=["install", "uninstall", "status"])

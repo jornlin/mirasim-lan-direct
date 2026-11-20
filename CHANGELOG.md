@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.3 — 2026-11-20
+
+- Per-space `mode`: `direct` (LAN, no gateway) or `gateway` (relay, keeps cloud
+  collaboration identity). `mld mode <node|label> direct|gateway`; re-apply
+  with `mld patch --force --restart`.
+
 ## 0.1.2 — 2026-11-20
 
 - Pass `installId` into the mirachannel transport options. The target and the

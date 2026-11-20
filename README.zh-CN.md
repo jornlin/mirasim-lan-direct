@@ -105,6 +105,20 @@ mld init --node pc-... --host 192.168.1.50:4939 --host 10.0.0.5:4939 \
 - 只有配置了 SSH 目标时才会自动刷新 pair（token/E2E/地址）；否则宿主变化后需重新
   `mld init`。
 
+## 协作 vs 直连
+
+直连模式绕过 gateway，用宿主的共享 legacy token 认证。云协作（成员身份、在线状态、
+协作模式）由 **gateway/账号会话**承载，所以直连的空间可能显示协作不可用。需要协作时，
+把这个空间切回 gateway（中继）并重打：
+
+```sh
+mld mode <node-id-或-label> gateway
+mld patch --force --restart
+```
+
+切回直连：`mld mode <...> direct`，再 `mld patch --force --restart`。宿主还需保持
+「协作空间」开启、平台连接正常。
+
 ## 命令
 
 | 命令 | 作用 |

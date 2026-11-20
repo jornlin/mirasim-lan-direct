@@ -151,6 +151,22 @@ it. `.gitignore` already excludes it. Automatic pair refresh (token/E2E/hosts)
 only runs when the config has an `ssh` target; without SSH, re-run `mld init`
 after the host changes.
 
+## Collaboration vs direct
+
+Direct mode bypasses the gateway and authenticates with the host's shared
+legacy token. Cloud collaboration — member identity, presence, shared mode — is
+carried by the **gateway/account session**, so a direct space may show
+collaboration as unavailable. If you need collaboration for a space, put it in
+gateway mode (relay) and re-apply:
+
+```sh
+mld mode <node-id-or-label> gateway
+mld patch --force --restart
+```
+
+Switch back with `mld mode <...> direct` and another `mld patch --force --restart`.
+The host must also have cloud attach on and a healthy platform connection.
+
 ## Commands
 
 | Command | What it does |
