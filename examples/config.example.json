@@ -10,7 +10,8 @@
         "http://10.0.0.5:4939"
       ],
       "token": "REPLACE_WITH_HOST_TOKEN",
-      "e2e": "REPLACE_WITH_HOST_E2E_PUBLIC_KEY"
+      "e2e": "REPLACE_WITH_HOST_E2E_PUBLIC_KEY",
+      "installId": "mld-replace-with-a-random-hex-id"
     }
   ],
   "ssh": {

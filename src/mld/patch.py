@@ -47,9 +47,13 @@ class Target:
     origin: str          # http://host:port
     token: str
     e2e: str             # host E2E public key
+    install_id: str = ""  # stable client id, so the host supersedes the previous device row
 
     def as_config(self) -> dict:
-        return {"o": self.origin, "t": self.token, "k": self.e2e}
+        cfg = {"o": self.origin, "t": self.token, "k": self.e2e}
+        if self.install_id:
+            cfg["i"] = self.install_id
+        return cfg
 
 
 @dataclass
@@ -61,7 +65,7 @@ class PatchResult:
 
 def target_hash(targets: Sequence[Target]) -> str:
     canonical = json.dumps(
-        sorted((t.node_id, t.origin, t.token, t.e2e) for t in targets),
+        sorted((t.node_id, t.origin, t.token, t.e2e, t.install_id) for t in targets),
         separators=(",", ":"),
     )
     return hashlib.sha256(canonical.encode()).hexdigest()[:12]
@@ -88,12 +92,19 @@ def read_marker(asar: Asar) -> str:
     return ""
 
 
+PATCHED_SIGNATURE = re.compile(rb'nodeId==="[^"]+";return\{mode:"remote",host:')
+
+
 def looks_patched(asar: Asar, origins: Iterable[str] = ()) -> bool:
     marker = read_marker(asar)
     if marker:
         return True
     blob = b"".join(asar.contents.values())
-    return any(o.encode() in blob for o in origins)
+    if any(o.encode() in blob for o in origins):
+        return True
+    # Older builds of this tool had no marker; detect the rewritten function
+    # independently of the address, so a changed host/port still counts.
+    return bool(PATCHED_SIGNATURE.search(blob))
 
 
 def _find_function(asar: Asar):
@@ -157,6 +168,7 @@ def _new_function(name: str, param: str, targets: Sequence[Target],
         f'...{param}.grantAt>=0?{{grantAt:{param}.grantAt}}:{{}},'
         f'...!{ent}&&{param}.gatewayUrl?{{gatewayUrl:{param}.gatewayUrl}}:{{}},'
         f'nodeId:{param}.nodeId,e2e:{ent}?{ent}.k:{param}.e2e,'
+        f'installId:{ent}?{ent}.i:({param}.installId??""),'
         f'rendezvous:{param}.rendezvous||{rend},...{v2_fn}({param})'
     ).encode() + b'}}' + marker_for(targets).encode()
     return code
@@ -173,6 +185,41 @@ def patch_js(asar: Asar, targets: Sequence[Target]) -> List[str]:
     asar.contents[path] = (data[:start]
                            + _new_function(name, param, targets, grant_fn, v2_fn, rend)
                            + data[end:])
+    return [path]
+
+
+E_RE = re.compile(
+    rb'function ([A-Za-z_$][\w$]*)\(([A-Za-z_$][\w$]*)\)\{return \2\.mode!=="remote"\?null:'
+    rb'\{mode:"remote",host:'
+)
+
+
+def patch_install_id(asar: Asar) -> List[str]:
+    """Make the final target builder pass installId through.
+
+    The cloud window path rebuilds the target in a second helper; without this,
+    the v2 client never sends a stable installId and the host stores a new
+    legacy device on every connection.
+    """
+    hits = []
+    for path, data in asar.contents.items():
+        if not path.endswith((".js", ".mjs")):
+            continue
+        for m in E_RE.finditer(data):
+            hits.append((path, m))
+    if len(hits) != 1:
+        raise PatchError("expected exactly one target pass-through function, found %d" % len(hits))
+    path, m = hits[0]
+    data = asar.contents[path]
+    start = m.start()
+    end = _function_end(data, start)
+    param = m.group(2).decode()
+    span = data[start:end]
+    needle = ("nodeId:%s.nodeId||void 0," % param).encode()
+    if span.count(needle) != 1:
+        raise PatchError("could not find the nodeId field in the target pass-through function")
+    span = span.replace(needle, needle + ("installId:%s.installId||void 0," % param).encode())
+    asar.contents[path] = data[:start] + span + data[end:]
     return [path]
 
 
@@ -254,6 +301,7 @@ def validate_js(binary: Path, data: bytes, label: str) -> None:
 def apply(asar: Asar, targets: Sequence[Target], *, app_binary: str | Path | None = None,
           node_binary: str | Path | None = None, validate: bool = True) -> PatchResult:
     changed = patch_js(asar, targets)
+    changed += patch_install_id(asar)
     origins = [t.origin for t in targets]
     changed += patch_csp(asar, origins)
     if validate:
@@ -264,4 +312,5 @@ def apply(asar: Asar, targets: Sequence[Target], *, app_binary: str | Path | Non
         for path in changed:
             if path.endswith((".js", ".mjs")):
                 validate_js(binary, asar.contents[path], path)
-    return PatchResult(changed=changed, origins=origins, marker=marker_for(targets))
+    return PatchResult(changed=list(dict.fromkeys(changed)), origins=origins,
+                       marker=marker_for(targets))

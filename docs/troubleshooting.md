@@ -105,6 +105,21 @@ If that fails: check the SSH key (`BatchMode` is used), the host's port, and
 whether `~/.mirasim/run/local-*.token` exists. As a fallback, copy the JSON
 output to a file and use `mld init --pair pair.json`.
 
+## “可连接的设备” keeps growing
+
+An older client patch authenticated with the shared token but sent no
+`installId`, so the host stored a new legacy device on every connection.
+Update to 0.1.1+, apply the patch, and restart. To clean the accumulated rows,
+edit the host's `~/.mirasim/devices.json` (back it up first) and keep only
+entries where `via != "legacy"` or `id == "legacy-shared-token"`; the host reads
+the file on the next device event.
+
+## Direct stopped after the host restarted
+
+The host's port may have changed (the desktop app defaults to 4970). Run
+`mld init --ssh my-host` or let `autopatch` refresh; the tool discovers
+`local-*.token` ports automatically. `mld check` shows the current target.
+
 ## The app update overwrote the patch
 
 Expected. The agent re-applies it within the configured interval (or immediately

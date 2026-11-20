@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.1.1 — 2026-11-20
+
+- Inject a stable `installId` into the direct target (and pass it through the
+  final target builder). The host now revokes the previous legacy device row
+  instead of adding a new one on every connection.
+- Discover the host's server port from `~/.mirasim/run/local-*.token` on SSH
+  init/refresh; the host can restart on a new port (the desktop app uses 4970).
+- Refresh pair data when no configured origin is reachable, not only on the
+  6-hour timer.
+- Recognize an older marker-less patch by the rewritten function signature, so
+  a changed host/port still rebuilds from the pristine copy instead of failing.
+- `mld patch` clears the `DISABLED` flag; deduplicate the changed-file list.
+
 ## 0.1.0 — 2026-11-20
 
 - Initial public layout.

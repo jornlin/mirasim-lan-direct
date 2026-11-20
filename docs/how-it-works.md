@@ -69,6 +69,29 @@ function L(e) {
 - every other cloud space is byte-for-byte behaviourally unchanged;
 - the trailing comment is the version/health marker (a hash of the targets).
 
+### Stable device identity
+
+With the shared token, the host's v2 legacy authentication
+(`Yto.legacy`) calls its device factory for every connection. That factory
+supersedes a previous record only when the new connection carries the same
+`installId` or the same noise key; the app's cloud path provides neither, so
+each connection added a new "可连接的设备" row.
+
+The patched target now carries a stable, generated `installId`, and the final
+target builder (`$e`) passes it through, so the v2 HELLO includes
+`client.installId`. The host revokes the previous legacy record with the same
+id and returns a new active one; the roster stays at one active row (the UI
+hides revoked rows; the on-disk history is capped at 200).
+
+### Port discovery
+
+The host's server port is not fixed: the desktop app defaults to 4970, while a
+manual `serve` may use another port. On SSH init/refresh the tool lists
+`~/.mirasim/run/local-*.token`, tries the configured port first, then every
+other port, and stores the one that answers `/mirachannel/pair`. If no
+configured origin is reachable, `autopatch` refreshes the pair immediately
+instead of waiting for the 6-hour timer.
+
 The CSP patch adds, for each configured host:
 
 - `connect-src`: `http://host:* ws://host:*`

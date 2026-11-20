@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mirasim-lan-direct"
-version = "0.1.0"
+version = "0.1.1"
 description = "Route selected Mirasim cloud spaces over the LAN instead of the relay"
 readme = "README.md"
 requires-python = ">=3.9"

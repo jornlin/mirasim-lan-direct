@@ -14,6 +14,9 @@ FILES = {
         b'function L(e){const t=e.gatewayUrl??"";return{mode:"remote",host:"",token:e.token??"",'
         b"...K(e)&&!e.token?{grant:e.grant}:{},...typeof e.grantAt==\"number\"?{grantAt:e.grantAt}:{},"
         b'...t?{gatewayUrl:t}:{},nodeId:e.nodeId,e2e:e.e2e,rendezvous:e.rendezvous||M,...N(e)}}'
+        b'function $e(e){return e.mode!=="remote"?null:{mode:"remote",host:e.host,token:e.token||void 0,'
+        b'rendezvous:e.rendezvous||void 0,nodeId:e.nodeId||void 0,e2e:e.e2e||void 0,'
+        b'grant:e.grant||void 0,gatewayUrl:e.gatewayUrl||void 0,...N(e)}}'
     ),
 }
 

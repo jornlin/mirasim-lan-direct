@@ -23,6 +23,9 @@ LAN connection impossible out of the box:
    target cannot complete the encrypted handshake.
 3. The renderer Content-Security-Policy does not allow `ws://<LAN-IP>:*`, so even
    a correct direct attempt is blocked and silently falls back to the relay.
+4. A direct v2 connection that authenticates with the shared token makes the
+   host store a new legacy device row on every connection. The patch sends a
+   stable `installId`, so the host supersedes the previous row.
 
 This tool rewrites the target builder (injecting the host's address, shared
 token and E2E public key, and removing `gatewayUrl`/`grant`) and widens the CSP
@@ -134,6 +137,9 @@ mld init --node pc-... --host 192.168.1.50:4939 --host 10.0.0.5:4939 \
 
 - `--host` is repeatable. The patcher tests each address and uses the first
   reachable one; the rest stay as fallbacks for later resolution.
+- `--port` (default `0`) auto-discovers the host's server port from
+  `~/.mirasim/run/local-*.token`. The desktop app may restart on 4970, a manual
+  `serve` on another port; SSH init and refresh follow it.
 - Ports are part of the host string (`host:port`) and the SSH fetch (`--port`).
 - Run `mld init` again with another `--node` to add more spaces; each target is
   patched independently.
@@ -222,6 +228,9 @@ See [docs/how-it-works.md](docs/how-it-works.md). Short version:
   safely (the app is left untouched, the old patch or relay keeps working).
 - The host's shared token is embedded in the patched `app.asar`. On POSIX the
   file is chmod 600; on Windows mind the install directory ACL.
+- A legacy (shared-token) device leaves a bounded history on the host (200
+  entries); the stable `installId` keeps one active row, and the UI hides
+  revoked rows.
 - `mirachannelStrictAuth` on the host will reject the shared token; direct
   routing then falls back to the relay.
 - Leaving the LAN makes the direct route fail and fall back to the relay.

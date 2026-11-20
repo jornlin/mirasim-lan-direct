@@ -51,27 +51,66 @@ def choose_origin(hosts: Iterable[str], default_port: int = 4939) -> str:
     return origins[0]
 
 
-def fetch_pair(ssh_target: str, port: int = 4939, timeout: int = 20) -> dict:
-    """Read /mirachannel/pair from the host's loopback over SSH.
-
-    The endpoint is loopback-only by design; SSH is the supported way in.
-    """
-    if not ssh_target:
-        raise ValueError("no ssh target configured")
-    snippet = (
-        f'T=$(cat "$HOME/.mirasim/run/local-{port}.token" 2>/dev/null)\n'
-        f'[ -n "$T" ] || T=$(cat "$(ls "$HOME"/.mirasim/run/local-*.token 2>/dev/null | head -1)" 2>/dev/null)\n'
-        f'[ -n "$T" ] || exit 3\n'
-        f'curl -fsS "http://127.0.0.1:{port}/mirachannel/pair?token=$T"'
-    )
-    proc = subprocess.run(
+def _ssh(ssh_target: str, snippet: str, timeout: int) -> subprocess.CompletedProcess:
+    return subprocess.run(
         ["ssh", "-o", "BatchMode=yes", "-o", f"ConnectTimeout={timeout}",
          "-o", "StrictHostKeyChecking=accept-new", ssh_target, snippet],
         capture_output=True, text=True, timeout=timeout + 15,
     )
+
+
+def local_ports(ssh_target: str, timeout: int = 15) -> List[int]:
+    """Ports of mirasim servers running on the host, from ~/.mirasim/run."""
+    proc = _ssh(ssh_target, 'ls "$HOME"/.mirasim/run/local-*.token 2>/dev/null', timeout)
+    ports = []
+    for line in (proc.stdout or "").splitlines():
+        name = line.rsplit("/", 1)[-1]
+        if name.startswith("local-") and name.endswith(".token"):
+            value = name[len("local-"):-len(".token")]
+            if value.isdigit():
+                ports.append(int(value))
+    return ports
+
+
+def _fetch_once(ssh_target: str, port: int, timeout: int) -> dict:
+    snippet = (
+        f'T=$(cat "$HOME/.mirasim/run/local-{port}.token" 2>/dev/null)\n'
+        f'[ -n "$T" ] || exit 3\n'
+        f'curl -fsS "http://127.0.0.1:{port}/mirachannel/pair?token=$T"'
+    )
+    proc = _ssh(ssh_target, snippet, timeout)
     if proc.returncode != 0:
-        raise RuntimeError((proc.stderr or proc.stdout).strip()[:400] or "ssh failed")
+        raise RuntimeError((proc.stderr or proc.stdout).strip()[:300] or "ssh failed")
     pair = json.loads(proc.stdout)
     if not pair.get("ok"):
         raise RuntimeError("pair endpoint refused: %s" % (pair.get("error") or pair))
     return pair
+
+
+def fetch_pair(ssh_target: str, port: Optional[int] = None, timeout: int = 20) -> Tuple[dict, int]:
+    """Read /mirachannel/pair from the host, discovering the server port.
+
+    The host may restart on a different port (the desktop app uses 4970 by
+    default, a manual ``serve`` may use another). Try the configured port first,
+    then every ``local-<port>.token`` on the host. Returns ``(pair, port)``.
+    """
+    if not ssh_target:
+        raise ValueError("no ssh target configured")
+    ports: List[int] = []
+    if port:
+        ports.append(int(port))
+    try:
+        for p in local_ports(ssh_target, timeout):
+            if p not in ports:
+                ports.append(p)
+    except Exception:
+        pass
+    if not ports:
+        ports = [4939]
+    errors = []
+    for p in ports:
+        try:
+            return _fetch_once(ssh_target, p, timeout), p
+        except Exception as exc:
+            errors.append("%s: %s" % (p, exc))
+    raise RuntimeError("could not read the host pair endpoint (" + "; ".join(errors) + ")")

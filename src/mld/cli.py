@@ -8,6 +8,7 @@ import os
 import shutil
 import sys
 import time
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Optional, Tuple
@@ -34,6 +35,15 @@ def _app(cfg: dict, explicit: Optional[str]) -> system.App:
     return system.find_app(explicit or cfg.get("app") or None)
 
 
+def _ensure_install_ids(cfg: dict) -> bool:
+    changed = False
+    for entry in cfg.get("targets") or []:
+        if not entry.get("installId"):
+            entry["installId"] = "mld-" + uuid.uuid4().hex
+            changed = True
+    return changed
+
+
 def _resolve_targets(cfg: dict) -> Tuple[List[patch.Target], bool]:
     default_port = int((cfg.get("ssh") or {}).get("port") or 4939)
     out: List[patch.Target] = []
@@ -49,7 +59,8 @@ def _resolve_targets(cfg: dict) -> Tuple[List[patch.Target], bool]:
             if entry.get("origin") != origin:
                 entry["origin"] = origin
                 changed = True
-        out.append(patch.Target(entry["nodeId"], origin, entry["token"], entry["e2e"]))
+        out.append(patch.Target(entry["nodeId"], origin, entry["token"], entry["e2e"],
+                               entry.get("installId") or ""))
     if not out:
         raise ValueError("no targets configured; run `mld init`")
     return out, changed
@@ -80,7 +91,8 @@ def _refresh_pair(cfg: dict) -> bool:
     if not target:
         return False
     try:
-        pair = hostinfo.fetch_pair(target, int(ssh.get("port") or 4939))
+        pair, detected = hostinfo.fetch_pair(target, int(ssh.get("port") or 0) or None)
+        cfg.setdefault("ssh", {})["port"] = detected
         entry = config.entry_from_pair(pair)
     except Exception as exc:
         system.log("pair refresh failed: %s" % exc)
@@ -89,6 +101,8 @@ def _refresh_pair(cfg: dict) -> bool:
     for i, old in enumerate(entries):
         if old.get("nodeId") == entry["nodeId"]:
             entry["origin"] = ""
+            if old.get("installId"):
+                entry["installId"] = old["installId"]
             entries[i] = entry
             break
     else:
@@ -175,7 +189,9 @@ def cmd_init(args) -> int:
         with open(args.pair, "r", encoding="utf-8") as fh:
             entry = config.entry_from_pair(json.load(fh), args.host or None)
     elif args.ssh:
-        entry = config.entry_from_pair(hostinfo.fetch_pair(args.ssh, args.port), args.host or None)
+        pair, detected = hostinfo.fetch_pair(args.ssh, args.port or None)
+        entry = config.entry_from_pair(pair, args.host or None)
+        cfg.setdefault("ssh", {})["port"] = detected
     elif args.token or args.e2e or args.node:
         if not (args.token and args.e2e and args.node and args.host):
             raise SystemExit("manual setup needs --token --e2e --node --host")
@@ -187,6 +203,9 @@ def cmd_init(args) -> int:
             "e2e": args.e2e,
         }
     if entry:
+        old = next((e for e in cfg.get("targets") or [] if e.get("nodeId") == entry["nodeId"]), None)
+        if old and old.get("installId"):
+            entry["installId"] = old["installId"]
         entries = [e for e in cfg.get("targets") or [] if e.get("nodeId") != entry["nodeId"]]
         entries.append(entry)
         cfg["targets"] = entries
@@ -197,8 +216,9 @@ def cmd_init(args) -> int:
             "  mld init --pair pair.json             # import a pair JSON file\n"
             "  mld init --node <id> --host <ip[:port]> --token <t> --e2e <k>\n"
         )
+    _ensure_install_ids(cfg)
     if args.ssh:
-        cfg["ssh"] = {"target": args.ssh, "port": args.port}
+        cfg["ssh"] = {"target": args.ssh, "port": (cfg.get("ssh") or {}).get("port") or args.port}
     if entry:
         cfg["pairRefreshedAt"] = _timestamp()
     if args.app:
@@ -229,10 +249,15 @@ def cmd_init(args) -> int:
 
 
 def cmd_patch(args) -> int:
+    try:
+        config.disabled_path().unlink()
+    except FileNotFoundError:
+        pass
     cfg = _load_cfg()
+    install_changed = _ensure_install_ids(cfg)
     app = _app(cfg, args.app)
     targets, changed = _resolve_targets(cfg)
-    if changed:
+    if changed or install_changed:
         _save_cfg(cfg)
     current = asar_mod.load(app.asar)
     if not args.force and _healthy(current, targets):
@@ -263,11 +288,16 @@ def cmd_autopatch(args) -> int:
             system.log("autopatch: no targets configured")
             return 0
         try:
-            if _pair_is_stale(cfg):
-                _refresh_pair(cfg)
+            install_changed = _ensure_install_ids(cfg)
             targets, changed = _resolve_targets(cfg)
-            if changed:
+            if changed or install_changed:
                 _save_cfg(cfg)
+            if _pair_is_stale(cfg) or not any(hostinfo.reachable(t.origin) for t in targets):
+                _refresh_pair(cfg)
+                install_changed = _ensure_install_ids(cfg)
+                targets, changed = _resolve_targets(cfg)
+                if changed or install_changed:
+                    _save_cfg(cfg)
             app = _app(cfg, None)
             current = asar_mod.load(app.asar)
             if _healthy(current, targets):
@@ -400,7 +430,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     i = sub.add_parser("init", help="write the runtime configuration")
     i.add_argument("--ssh", help="SSH target that can reach the host's loopback")
-    i.add_argument("--port", type=int, default=4939)
+    i.add_argument("--port", type=int, default=0, help="host server port; 0 = auto-detect")
     i.add_argument("--pair", help="pair JSON file from /mirachannel/pair")
     i.add_argument("--host", action="append", help="LAN host[:port]; repeatable")
     i.add_argument("--token")
