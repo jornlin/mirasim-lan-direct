@@ -93,6 +93,32 @@ class PatchTests(unittest.TestCase):
         self.assertIn(b"||RD", out)
 
     @unittest.skipUnless(shutil.which("node"), "node not available")
+    def test_hybrid_post_wrapper_does_not_recurse(self):
+        # The renderer wraps client.post() by assigning to it. The composite
+        # must capture the original direct post and honour the override, or
+        # every non-presence post calls itself until the stack blows.
+        hyb = patch.HYB_FN.decode()
+        script = (
+            "const gw={posted:[],post(f){this.posted.push(f);return true},"
+            "onFrame(){},close(){},dispose(){}};"
+            "function Dt(){return gw}"
+            + hyb
+            + "\nconst directPosts=[];"
+              "const direct={connected:true,post(f){directPosts.push(f);return true},"
+              "onFrame(){return()=>{}},onConnection(){return()=>{}},close(){},dispose(){}};"
+              "const c=HYB({nodeId:'pc',gatewayUrl:'wss://g',host:'http://h'},{},{...direct});"
+              "const orig=c.post;c.post=f=>orig(f);"
+              "c.post({type:'state'});c.post({type:'presenceUpdate'});"
+              "console.log(JSON.stringify({direct:directPosts.map(f=>f.type),"
+              "gw:gw.posted.map(f=>f.type)}));"
+        )
+        proc = subprocess.run(["node", "-e", script], capture_output=True, text=True)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        out = json.loads(proc.stdout)
+        self.assertEqual(out["direct"], ["state"])
+        self.assertEqual(out["gw"], ["presenceUpdate"])
+
+    @unittest.skipUnless(shutil.which("node"), "node not available")
     def test_patched_function_behaviour(self):
         patch.patch_js(self.a, TARGETS)
         js = self.a.get("/dist/renderer/assets/default-space.js").decode()

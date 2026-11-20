@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.1.9 — 2026-11-20
+
+- Fix the hybrid composite's real recursion: the renderer wraps a client's
+  `post` by assigning to it, and the proxy's `post` forwarded through the
+  target's now-wrapped `post`, calling itself forever. Capture the original
+  direct `post`, honour an assigned `post` override, and add a `set` trap so
+  the wrapper chain terminates. Patch revision 5.
+
+## 0.1.8 — 2026-11-20
+
+- Harden the hybrid composite against re-entrant callbacks: iterate over a
+  snapshot of frame/connection subscribers and drop synchronous re-entrant
+  frames. Patch revision 4.
+
 ## 0.1.7 — 2026-11-20
 
 - Fix the hybrid composite's initial `onConnection(false)` callback recursion
