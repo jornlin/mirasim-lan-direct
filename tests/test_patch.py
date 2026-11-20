@@ -36,6 +36,15 @@ class PatchTests(unittest.TestCase):
         self.assertIn("installId:e.installId||void 0", js)
         self.assertIn('"i":"mld-test"', js)
 
+    def test_hybrid_transport(self):
+        changed = patch.patch_hybrid_transport(self.a)
+        self.assertEqual(changed, ["/dist/renderer/assets/strategy.js"])
+        js = self.a.get("/dist/renderer/assets/strategy.js").decode()
+        self.assertIn("t.gatewayUrl&&!t.host&&t.nodeId", js)
+        self.assertIn("client:HYB(t,e,Ss({host:t.host", js)
+        self.assertIn("function HYB(", js)
+        self.assertIn("grant:(t.gatewayUrl&&t.host)?void 0:t.grant", js)
+
     def test_collab_gate(self):
         changed = patch.patch_collab_gate(self.a)
         self.assertEqual(changed, ["/dist/renderer/assets/presence.js"])
@@ -125,6 +134,7 @@ class PatchTests(unittest.TestCase):
         patch.patch_install_id(self.a)
         patch.patch_install_id_route(self.a)
         patch.patch_collab_gate(self.a)
+        patch.patch_hybrid_transport(self.a)
         patch.patch_csp(self.a, ["http://10.0.0.5:4939"])
         raw = asar.build(self.a)
         asar.verify_bytes(raw)

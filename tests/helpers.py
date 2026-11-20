@@ -19,9 +19,17 @@ FILES = {
         b'grant:e.grant||void 0,gatewayUrl:e.gatewayUrl||void 0,...N(e)}}'
     ),
     "dist/renderer/assets/strategy.js": (
-        b'function X(t,e){if(t?.mode==="remote"&&t.host){return{kind:"mirachannel",'
-        b"client:S({host:t.host,hosts:t.hosts,rendezvous:t.rendezvous,nodeId:t.nodeId,"
-        b"token:t.token,grant:t.grant,e2e:t.e2e,WebSocketImpl:e.WebSocketImpl})}}}"
+        b'function xs(t,e){if(t?.mode==="remote"&&t.gatewayUrl&&t.nodeId&&(t.grant||e.gatewayTicket)){'
+        b'const s=t.nodeId,i=t.grant??"",o=e.gatewayTicket;return{kind:"socket",'
+        b'client:Dt(t.gatewayUrl,{WebSocketImpl:e.WebSocketImpl,preamble:o?async()=>[{type:"gatewayAuth",'
+        b'token:await o(s),nodeId:s,wake:1,idleSleep:1,rebind:1}]:[{type:"gatewayAuth",token:i,nodeId:s,'
+        b'wake:1,idleSleep:1,rebind:1}],managed:!0})}}const n=t?.mode==="remote"&&'
+        b'(t.rendezvous&&t.nodeId||t.host||(t.hosts?.length??0)>0);if(t?.mode==="remote"&&n)try{'
+        b'return{kind:"mirachannel",client:Ss({host:t.host,hosts:t.hosts,rendezvous:t.rendezvous,'
+        b'nodeId:t.nodeId,token:t.token,grant:t.grant,e2e:t.e2e,...t.installId?{installId:t.installId}:{},'
+        b'WebSocketImpl:e.WebSocketImpl,RTCPeerConnectionImpl:e.RTCPeerConnectionImpl,createV1:ss})}}'
+        b'catch(s){return{kind:"unavailable",client:null}}return{kind:"socket",'
+        b'client:Dt(r,{WebSocketImpl:e.WebSocketImpl})}}export{xs as c};'
     ),
     "dist/renderer/assets/presence.js": (
         b'function V(e){e.onFrame(A=>{if(A.type==="state"){const j=A.state.collab===!0;'

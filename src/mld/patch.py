@@ -50,13 +50,16 @@ class Target:
     e2e: str             # host E2E public key
     install_id: str = ""  # stable client id, so the host supersedes the previous device row
     collab: bool = False  # enable the collab presence gate for this direct target
+    hybrid: bool = False  # direct data + gateway control/presence
 
     def as_config(self) -> dict:
         cfg = {"o": self.origin, "t": self.token, "k": self.e2e}
         if self.install_id:
             cfg["i"] = self.install_id
-        if self.collab:
+        if self.collab or self.hybrid:
             cfg["c"] = 1
+        if self.hybrid:
+            cfg["h"] = 1
         return cfg
 
 
@@ -70,7 +73,7 @@ class PatchResult:
 def target_hash(targets: Sequence[Target]) -> str:
     canonical = json.dumps(
         {"rev": PATCH_REVISION,
-         "targets": sorted((t.node_id, t.origin, t.token, t.e2e, t.install_id, t.collab)
+         "targets": sorted((t.node_id, t.origin, t.token, t.e2e, t.install_id, t.collab, t.hybrid)
                            for t in targets)},
         separators=(",", ":"),
     )
@@ -168,12 +171,14 @@ def _new_function(name: str, param: str, targets: Sequence[Target],
     ent = "d" if param != "d" else "u"
     code = (
         f'function {name}({param}){{const {tbl}={table};const {ent}={tbl}[{param}.nodeId];'
+        f'const h={ent}&&{ent}.h;'
         f'if({ent}&&{ent}.c)globalThis.__mldCollab=true;'
         f'return{{mode:"remote",host:{ent}?{ent}.o:({param}.host??""),'
         f'token:{ent}?{ent}.t:({param}.token??""),'
-        f'...{ent}?{{}}:{grant_fn}({param})&&!{param}.token?{{grant:{param}.grant}}:{{}},'
+        f'...((!{ent}||h)?({grant_fn}({param})&&!{param}.token?{{grant:{param}.grant}}:{{}}):{{}}),'
         f'...{param}.grantAt>=0?{{grantAt:{param}.grantAt}}:{{}},'
-        f'...!{ent}&&{param}.gatewayUrl?{{gatewayUrl:{param}.gatewayUrl}}:{{}},'
+        f'...((!{ent}||h)&&{param}.gatewayUrl)?{{gatewayUrl:{param}.gatewayUrl}}:{{}},'
+        f'...h?{{hybrid:!0}}:{{}},'
         f'nodeId:{param}.nodeId,e2e:{ent}?{ent}.k:{param}.e2e,'
         f'installId:{ent}?{ent}.i:({param}.installId??""),'
         f'rendezvous:{param}.rendezvous||{rend},...{v2_fn}({param})'
@@ -257,6 +262,42 @@ def patch_install_id_route(asar: Asar) -> List[str]:
     param = m.group(2).decode()
     insert = ("...%s.installId?{installId:%s.installId}:{}," % (param, param)).encode()
     asar.contents[path] = data[:end] + insert + data[end:]
+    return [path]
+
+
+
+HYB_FN = b"""function HYB(t,e,c){if(!t||!t.gatewayUrl||!t.host)return c;const s=t.nodeId,i=t.grant??"",o=e&&e.gatewayTicket;const g=Dt(t.gatewayUrl,{WebSocketImpl:e.WebSocketImpl,preamble:o?async()=>[{type:"gatewayAuth",token:await o(s),nodeId:s,wake:1,idleSleep:1,rebind:1}]:[{type:"gatewayAuth",token:i,nodeId:s,wake:1,idleSleep:1,rebind:1}],managed:!0});const P=new Set(["presenceUpdate","tasksenseFocus","watchTurnActivity","requestSessionAccess","answerSessionAccess","setSessionAccess","presenceKick","memberKeyUsage","getHostUsage","watchAttention"]);const F=new Set(["presence","presenceKicked","turnActivity","sessionAccess","memberKeyUsage","hostUsage","attention"]);const subs=new Set(),conns=new Set();g.onFrame(f=>{if(f&&F.has(f.type))for(const cb of subs)cb(f)});c.onFrame(f=>{if(f&&!F.has(f.type))for(const cb of subs)cb(f)});c.onConnection?.(()=>{for(const cb of conns)cb(c.connected)});return new Proxy(c,{get(target,prop){if(prop==="post")return f=>{try{if(f&&P.has(f.type))return g.post(f)}catch{}return target.post(f)};if(prop==="onFrame")return cb=>{subs.add(cb);return()=>subs.delete(cb)};if(prop==="onConnection")return cb=>{conns.add(cb);try{cb(c.connected)}catch{};return()=>conns.delete(cb)};if(prop==="close")return()=>{try{g.close()}catch{};return target.close()};if(prop==="dispose")return()=>{try{g.dispose()}catch{};return target.dispose?.()};if(prop==="reconnectNow")return()=>{try{g.reconnectNow?.()}catch{};return target.reconnectNow?.()};return target[prop]}})}
+"""
+
+
+def patch_hybrid_transport(asar: Asar) -> List[str]:
+    hits = []
+    for path, data in asar.contents.items():
+        if not path.endswith((".js", ".mjs")):
+            continue
+        if (b't.gatewayUrl&&t.nodeId&&(t.grant||e.gatewayTicket)' in data
+                and b'client:Ss({host:t.host' in data):
+            hits.append(path)
+    if len(hits) != 1:
+        raise PatchError("expected exactly one mirachannel transport dispatcher, found %d" % len(hits))
+    path = hits[0]
+    data = asar.contents[path]
+    cond = b't.gatewayUrl&&t.nodeId&&(t.grant||e.gatewayTicket)'
+    data = data.replace(cond, b't.gatewayUrl&&!t.host&&t.nodeId&&(t.grant||e.gatewayTicket)', 1)
+    data = data.replace(b'client:Ss({host:t.host', b'client:HYB(t,e,Ss({host:t.host', 1)
+    old_grant = b'grant:t.grant,e2e:t.e2e'
+    if old_grant not in data:
+        raise PatchError("could not find the mirachannel grant field")
+    data = data.replace(old_grant, b'grant:(t.gatewayUrl&&t.host)?void 0:t.grant,e2e:t.e2e', 1)
+    m = re.search(rb'createV1:([A-Za-z_$][\w$]*)\}\)\}', data)
+    if not m:
+        raise PatchError("could not find the mirachannel client call end")
+    data = data[:m.start()] + b'createV1:' + m.group(1) + b'}))}' + data[m.end():]
+    idx = data.rfind(b'export{')
+    if idx < 0:
+        raise PatchError("could not find the module export")
+    data = data[:idx] + HYB_FN + data[idx:]
+    asar.contents[path] = data
     return [path]
 
 
@@ -367,6 +408,7 @@ def apply(asar: Asar, targets: Sequence[Target], *, app_binary: str | Path | Non
     changed += patch_install_id(asar)
     changed += patch_install_id_route(asar)
     changed += patch_collab_gate(asar)
+    changed += patch_hybrid_transport(asar)
     origins = [t.origin for t in targets]
     changed += patch_csp(asar, origins)
     if validate:

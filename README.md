@@ -178,6 +178,20 @@ This forces the renderer's presence gate for that target; the host's presence
 service still decides whether the space is collaborative. If the UI does not
 activate, use gateway mode for that space.
 
+### Hybrid (experimental)
+
+```sh
+mld mode <node-id-or-label> hybrid
+mld patch --force --restart
+```
+
+Hybrid keeps a **gateway link** for collaboration/presence/turn-activity frames
+and sends session/data frames over the **LAN**. The gateway frames are limited
+to presence/state/collab types; session lists, snapshots, terminals, files and
+prompts stay on the direct link. It needs the cloud entry to still carry a
+gateway session; if the gateway side cannot authenticate, switch back to
+`gateway` mode.
+
 ## Commands
 
 | Command | What it does |

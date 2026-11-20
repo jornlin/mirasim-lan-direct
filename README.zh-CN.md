@@ -129,6 +129,16 @@ mld patch --force --restart
 这会让该目标强制打开渲染层的在线状态开关；空间是否真的协作由宿主的 presence 服务
 决定。若界面仍未激活，就用 gateway 模式。
 
+### 混合模式（实验）
+
+```sh
+mld mode <node-id-或-label> hybrid
+mld patch --force --restart
+```
+
+混合模式保留一条 **gateway 链路**只承载协作/在线状态/轮次活动帧，会话、快照、终端、
+文件和提示词等数据帧走**局域网直连**。若 gateway 侧无法认证，切回 `gateway` 模式。
+
 ## 命令
 
 | 命令 | 作用 |

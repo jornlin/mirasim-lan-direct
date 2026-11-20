@@ -51,7 +51,8 @@ def _resolve_targets(cfg: dict) -> Tuple[List[patch.Target], bool]:
     out: List[patch.Target] = []
     changed = False
     for entry in cfg.get("targets") or []:
-        if (entry.get("mode") or "direct").lower() == "gateway":
+        mode = (entry.get("mode") or "direct").lower()
+        if mode == "gateway":
             continue
         hosts = entry.get("hosts") or []
         origin = entry.get("origin")
@@ -63,8 +64,10 @@ def _resolve_targets(cfg: dict) -> Tuple[List[patch.Target], bool]:
             if entry.get("origin") != origin:
                 entry["origin"] = origin
                 changed = True
+        hybrid = mode == "hybrid"
         out.append(patch.Target(entry["nodeId"], origin, entry["token"], entry["e2e"],
-                               entry.get("installId") or "", bool(entry.get("collab"))))
+                               entry.get("installId") or "",
+                               bool(entry.get("collab")) or hybrid, hybrid))
     if not out and not (cfg.get("targets") or []):
         raise ValueError("no targets configured; run `mld init`")
     return out, changed
@@ -518,7 +521,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     m = sub.add_parser("mode", help="choose direct LAN or gateway/relay (collaboration) for a space")
     m.add_argument("target", help="node id or label")
-    m.add_argument("mode", choices=["direct", "gateway"])
+    m.add_argument("mode", choices=["direct", "gateway", "hybrid"])
     m.set_defaults(func=cmd_mode)
 
     ag = sub.add_parser("agent", help="install/remove the background re-patcher")

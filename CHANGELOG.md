@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.5 — 2026-11-20
+
+- Experimental `hybrid` mode: a composite transport keeps the gateway link for
+  presence/collab/turn-activity frames while session and data frames use the
+  direct LAN link. `mld mode <node> hybrid`; fall back to `gateway` if the
+  gateway half cannot authenticate.
+
 ## 0.1.4 — 2026-11-20
 
 - Optional collab presence for a direct target: `mld collab <node|label> on`
