@@ -95,10 +95,24 @@ def find_app(explicit: Optional[str] = None) -> App:
     )
 
 
+def _darwin_main_running(binary: str, ps_output: Optional[str] = None) -> bool:
+    """Whether the GUI main process is alive.
+
+    Mirasim also starts ``server.cjs``, ``cli.cjs`` and ``screen-lane.cjs``
+    from the same executable. ``pgrep -f <binary>`` matches those helpers, so
+    a quit looks failed and a patch looks unsafe long after the window is
+    gone. The Electron main process is the one whose command line is exactly
+    the bundle binary, with no script argument.
+    """
+    if ps_output is None:
+        r = subprocess.run(["ps", "-axo", "command="], capture_output=True, text=True)
+        ps_output = r.stdout or ""
+    return any(line.strip() == binary for line in ps_output.splitlines())
+
+
 def is_running(app: App) -> bool:
     if sys.platform == "darwin":
-        r = subprocess.run(["pgrep", "-f", str(app.binary)], capture_output=True)
-        return r.returncode == 0
+        return _darwin_main_running(str(app.binary))
     if sys.platform == "win32":
         r = subprocess.run(["tasklist", "/FI", "IMAGENAME eq Mirasim.exe"],
                            capture_output=True, text=True)

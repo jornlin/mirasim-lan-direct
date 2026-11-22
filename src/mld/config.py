@@ -110,6 +110,23 @@ def entry_from_pair(pair: dict, hosts_override: Optional[List[str]] = None) -> d
     }
 
 
+# Fields that describe the user's choice for a target, not the host. The pair
+# endpoint cannot supply them, so a refresh must carry them over from the old
+# entry; otherwise a periodic pair refresh silently resets `mode`/`collab`
+# (and member grants) back to a plain direct target.
+PRESERVED_TARGET_FIELDS = ("label", "mode", "collab", "grant", "member", "installId")
+
+
+def merge_pair_entry(old: dict, refreshed: dict) -> dict:
+    """Merge fresh pair data into an existing target entry."""
+    merged = dict(refreshed)
+    for key in PRESERVED_TARGET_FIELDS:
+        if old.get(key) not in (None, ""):
+            merged[key] = old[key]
+    merged["origin"] = ""
+    return merged
+
+
 def sanitized(cfg: dict) -> dict:
     """A copy safe to print: secrets replaced."""
     def mask(value: str) -> str:
