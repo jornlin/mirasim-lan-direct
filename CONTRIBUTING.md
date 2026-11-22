@@ -25,6 +25,11 @@ Style: small modules, type hints, no side effects at import time, clear error
 messages. Keep the patcher fail-closed: if the target function or CSP cannot be
 found exactly once, raise and leave the app untouched.
 
+## Releases
+
+- Keep `CHANGELOG.md` and `CHANGELOG.zh-CN.md` in sync for every version.
+- A GitHub release body must include both the English and 简体中文 notes.
+
 ## Pull requests
 
 - Describe the app version you tested against (if you tested against a real app).
