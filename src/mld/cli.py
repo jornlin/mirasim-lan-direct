@@ -111,9 +111,7 @@ def _refresh_pair(cfg: dict) -> bool:
     entries = cfg.setdefault("targets", [])
     for i, old in enumerate(entries):
         if old.get("nodeId") == entry["nodeId"]:
-            entry["origin"] = ""
-            if old.get("installId"):
-                entry["installId"] = old["installId"]
+            entry = config.merge_pair_entry(old, entry)
             entries[i] = entry
             break
     else:

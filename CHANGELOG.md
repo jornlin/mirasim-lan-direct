@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.6.2 — 2026-11-22
+
+- A periodic pair refresh no longer resets a target's `mode`, `collab`,
+  `grant`, `member`, `label` or `installId`. Previously `_refresh_pair`
+  replaced the entry wholesale, so a hybrid/direct-collab target silently
+  became plain `direct` every few hours and the window fell back to the local
+  messenger layout ("this computer is not a collaboration space").
+- `is_running` on macOS now looks only at the GUI main process. Mirasim also
+  runs `server.cjs`, `cli.cjs` and `screen-lane.cjs` from the same binary, and
+  the old `pgrep -f` check treated those helpers as a running app, so
+  `mld patch --restart` could fail with "Mirasim did not quit".
+
 ## 0.6.1 — 2026-11-21
 
 - `mld check` now verifies the optional host g2/role verifier over the

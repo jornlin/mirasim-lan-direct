@@ -55,6 +55,28 @@ class ConfigTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             config.entry_from_pair(bad)
 
+    def test_pair_refresh_preserves_user_choices(self):
+        old = config.entry_from_pair(PAIR)
+        old.update({
+            "label": "my-host",
+            "mode": "hybrid",
+            "collab": True,
+            "grant": "jwt",
+            "member": True,
+            "installId": "mld-abc",
+            "origin": "http://10.0.0.5:4939",
+            "token": "old-token",
+        })
+        merged = config.merge_pair_entry(old, config.entry_from_pair(PAIR))
+        for key, value in (("label", "my-host"), ("mode", "hybrid"),
+                           ("collab", True), ("grant", "jwt"),
+                           ("member", True), ("installId", "mld-abc")):
+            self.assertEqual(merged[key], value, key)
+        # Host-derived data is refreshed, and the origin is re-resolved.
+        self.assertEqual(merged["token"], "tok123456789")
+        self.assertEqual(merged["hosts"], PAIR["hosts"])
+        self.assertEqual(merged["origin"], "")
+
     def test_host_normalisation(self):
         self.assertEqual(hostinfo.split_host("10.0.0.5:5000"), ("10.0.0.5", 5000))
         self.assertEqual(hostinfo.split_host("http://10.0.0.5:5000/x"), ("10.0.0.5", 5000))
