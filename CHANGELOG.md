@@ -1,5 +1,7 @@
 # Changelog
 
+English | [简体中文](CHANGELOG.zh-CN.md)
+
 ## 0.6.2 — 2026-11-22
 
 - A periodic pair refresh no longer resets a target's `mode`, `collab`,
