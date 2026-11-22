@@ -2,6 +2,13 @@
 
 [English](CHANGELOG.md) | 简体中文
 
+## 0.6.3 — 2026-11-22
+
+- 新增 `CHANGELOG.zh-CN.md`，完整的简体中文更新日志，并与本文件互相链接。
+- GitHub Release 正文改为中英双语（English + 简体中文），约定写入
+  `CONTRIBUTING.md`。
+- 自 0.6.2 起无运行时改动。
+
 ## 0.6.2 — 2026-11-22
 
 - 周期性 pair 刷新不再重置 target 的 `mode`、`collab`、`grant`、`member`、

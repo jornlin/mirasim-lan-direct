@@ -2,6 +2,14 @@
 
 English | [简体中文](CHANGELOG.zh-CN.md)
 
+## 0.6.3 — 2026-11-22
+
+- Add `CHANGELOG.zh-CN.md`, a full Simplified Chinese translation linked from
+  this file.
+- GitHub release notes are now bilingual (English + 简体中文); the convention
+  is documented in `CONTRIBUTING.md`.
+- No runtime changes since 0.6.2.
+
 ## 0.6.2 — 2026-11-22
 
 - A periodic pair refresh no longer resets a target's `mode`, `collab`,
