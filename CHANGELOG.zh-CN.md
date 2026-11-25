@@ -2,6 +2,18 @@
 
 [English](CHANGELOG.md) | 简体中文
 
+## 0.6.4 — 2026-11-25
+
+- 适配 MiraSIM 0.0.843 的渲染层 bundle：hybrid 派发器不再硬编码压缩后的
+  client 构造器和 gateway socket 名称，改为从派发器代码中解析。这样 App
+  升级后重打补丁仍能找到改写点，而不是报 “found 0”。
+- `scripts/reapply-patch.sh` 不再把运行中的 App 误判为已停止。它的
+  `ps | grep -q` 检查在 `pipefail` 下会触发 SIGPIPE，导致跳过退出步骤，
+  随后 `mld patch` 拒绝执行。
+- `mld patch` 与重打脚本新增 `--allow-running`：App 运行期间就地替换
+  `app.asar`（原子替换），下次启动生效。适用于打补丁的进程本身运行在
+  App 内部的情况。
+
 ## 0.6.3 — 2026-11-22
 
 - 新增 `CHANGELOG.zh-CN.md`，完整的简体中文更新日志，并与本文件互相链接。

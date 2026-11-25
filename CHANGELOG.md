@@ -2,6 +2,19 @@
 
 English | [简体中文](CHANGELOG.zh-CN.md)
 
+## 0.6.4 — 2026-11-25
+
+- Follow the Mirasim 0.0.843 renderer bundle: the hybrid dispatcher lookup no
+  longer hardcodes the minified client builder and gateway socket names. They
+  are read from the dispatcher text, so a reapply after this app update finds
+  the rewrite points again instead of failing with "found 0".
+- `scripts/reapply-patch.sh` no longer mistakes a running app for a stopped
+  one. Its `ps | grep -q` check hit SIGPIPE under `pipefail`, so the quit step
+  was skipped and `mld patch` refused to run.
+- New `--allow-running` for `mld patch` and the reapply script: patch
+  `app.asar` in place while Mirasim runs (atomic replace) and take effect on
+  the next launch. Needed when the patcher is itself running inside the app.
+
 ## 0.6.3 — 2026-11-22
 
 - Add `CHANGELOG.zh-CN.md`, a full Simplified Chinese translation linked from
