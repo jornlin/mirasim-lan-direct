@@ -3,8 +3,9 @@
 # Quits Mirasim, patches, verifies, then relaunches it.
 #
 # Usage:
-#   scripts/reapply-patch.sh              # normal rebuild
-#   scripts/reapply-patch.sh --force      # extra args are passed to `mld patch`
+#   scripts/reapply-patch.sh                    # normal rebuild
+#   scripts/reapply-patch.sh --force            # extra args are passed to `mld patch`
+#   scripts/reapply-patch.sh --allow-running    # patch in place, no quit/relaunch
 #   MLD_APP=/path/to/Mirasim.app scripts/reapply-patch.sh
 
 set -euo pipefail
@@ -27,7 +28,11 @@ fi
 mld() { PYTHONPATH="$ROOT/src" "$PY" -m mld "$@"; }
 
 is_running() {
-  ps -axo command= | grep -qxF "$BINARY"
+  # Read ps to completion: `grep -q` exits early, and with pipefail the
+  # writer's SIGPIPE would make a genuine match look like a miss.
+  local lines
+  lines="$(ps -axo command=)"
+  [[ $'\n'"$lines"$'\n' == *$'\n'"$BINARY"$'\n'* ]]
 }
 
 quit_app() {
@@ -57,8 +62,23 @@ trap relaunch EXIT
 
 mkdir -p "$LOG_DIR"
 
+ALLOW_RUNNING=0
+for arg in "$@"; do
+  [[ "$arg" == "--allow-running" ]] && ALLOW_RUNNING=1
+done
+if [[ $ALLOW_RUNNING -eq 1 ]]; then
+  # The app keeps the old asar until its next launch; do not quit or relaunch.
+  trap - EXIT
+fi
+
 echo "==> app: $APP"
-quit_app || { echo "error: could not quit Mirasim" >&2; exit 1; }
+if [[ $ALLOW_RUNNING -eq 0 ]]; then
+  quit_app || {
+    echo "error: could not quit Mirasim" >&2
+    echo "       run inside the app? use --allow-running, then restart it yourself" >&2
+    exit 1
+  }
+fi
 
 echo "==> patching"
 if mld patch --app "$APP" "$@"; then

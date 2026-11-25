@@ -165,7 +165,8 @@ def _choose_source(cfg: dict, app: system.App, current: asar_mod.Asar,
 
 def _apply_and_install(cfg: dict, app: system.App, targets: List[patch.Target],
                        source: asar_mod.Asar, source_is_installed: bool,
-                       *, restart: bool, dry_run: bool, log: bool) -> patch.PatchResult:
+                       *, restart: bool, dry_run: bool, log: bool,
+                       allow_running: bool = False) -> patch.PatchResult:
     result = patch.apply(source, targets, app_binary=app.binary)
     data = asar_mod.build(source)
     asar_mod.verify_bytes(data)
@@ -174,8 +175,9 @@ def _apply_and_install(cfg: dict, app: system.App, targets: List[patch.Target],
         return result
 
     running = system.is_running(app)
-    if running and not restart:
-        raise RuntimeError("Mirasim is running; close it first or pass --restart")
+    if running and not restart and not allow_running:
+        raise RuntimeError("Mirasim is running; close it first or pass --restart "
+                           "(or --allow-running to patch in place for the next launch)")
     if running and restart:
         # Probe the destination before quitting. A launchd-run agent may be
         # denied by macOS App Management even though a terminal can write; do
@@ -315,7 +317,8 @@ def cmd_patch(args) -> int:
         return 0
     source, source_is_installed = _choose_source(cfg, app, current, targets, args.original)
     result = _apply_and_install(cfg, app, targets, source, source_is_installed,
-                                restart=args.restart, dry_run=args.dry_run, log=False)
+                                restart=args.restart, dry_run=args.dry_run, log=False,
+                                allow_running=args.allow_running)
     if args.dry_run:
         print("dry run: would change %s, %d bytes" % (", ".join(result.changed), len(asar_mod.build(source))))
     else:
@@ -668,6 +671,8 @@ def build_parser() -> argparse.ArgumentParser:
     pt.add_argument("--force", action="store_true", help="rebuild even if already patched")
     pt.add_argument("--dry-run", action="store_true")
     pt.add_argument("--restart", action="store_true", help="quit and relaunch Mirasim")
+    pt.add_argument("--allow-running", action="store_true",
+                    help="patch in place while Mirasim runs; takes effect on next launch")
     pt.add_argument("--original", help="unpatched app.asar to rebuild from")
     pt.set_defaults(func=cmd_patch)
 

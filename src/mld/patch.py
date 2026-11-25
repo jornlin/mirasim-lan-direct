@@ -28,7 +28,7 @@ from typing import Iterable, List, Sequence
 from .asar import Asar
 
 MARK_PREFIX = "mirasim-lan-direct:"
-PATCH_REVISION = 17   # bump when the set of rewrite points changes
+PATCH_REVISION = 18   # bump when the set of rewrite points changes
 LEGACY_MARKERS = ("mirasim-lan-patch:", "mirasim-lan-patch")
 
 # function <name>(<param>){const <var>=<param>.gatewayUrl??"";return{mode:"remote",host:""
@@ -291,8 +291,11 @@ def patch_install_id_route(asar: Asar) -> List[str]:
 # - ``cp`` is the direct ``post`` captured before the renderer can replace it;
 #   the renderer wraps ``post`` by assignment, so forwarding through the
 #   target's current ``post`` would call the wrapper recursively.
-HYB_FN = b"""function HYB(t,e,c){if(!t||!t.host)return c;if(!t.gatewayUrl){if(!t.collab)return c;const cp=c.post.bind(c),hello={type:"clientHello",remoteByChoice:!0};try{cp(hello)}catch{}let po=null;const postFn=f=>cp(f);c.onConnection?.(()=>{if(c.connected){try{cp(hello)}catch{}}});return new Proxy(c,{get(target,prop){if(prop==="post")return po??postFn;if(prop==="managed")return!0;return c[prop]},set(target,prop,value){if(prop==="post"){po=typeof value==="function"&&value!==postFn?value:null;return!0}target[prop]=value;return!0}})}const s=t.nodeId,i=t.grant??"",o=e&&e.gatewayTicket;const g=Dt(t.gatewayUrl,{WebSocketImpl:e.WebSocketImpl,preamble:o?async()=>[{type:"gatewayAuth",token:await o(s),nodeId:s,wake:1,idleSleep:1,rebind:1}]:[{type:"gatewayAuth",token:i,nodeId:s,wake:1,idleSleep:1,rebind:1}],managed:!0});const P=new Set(["presenceUpdate","tasksenseFocus","watchTurnActivity","requestSessionAccess","answerSessionAccess","setSessionAccess","presenceKick","memberKeyUsage","getHostUsage","listMemberKeyUsage","watchAttention"]);const F=new Set(["presence","presenceKicked","turnActivity","sessionAccess","memberKeyUsage","hostUsage","attention"]);const C=new Set(["createMemberWorkspace","setWorkspaceMembers","setCloudSpace","setControlledSpace","setWorkspaceArchived","machineMemberRole","setMachineMemberRole","machineShared","machineUnshared","setMachineShare","memberWorkspace","workspaceMembers"]);const K=T=>typeof T=="string"&&(T.startsWith("chat")||T.startsWith("peer")||T==="listMessagingSessions"||C.has(T));const B=new Set(["ready","clientVisibility","setStreamCadence","setSettingsPush"]);const subs=new Set(),conns=new Set(),cp=c.post.bind(c);const hello={type:"clientHello",remoteByChoice:!0};try{cp(hello)}catch{}let po=null,emitting=false;const emit=f=>{if(emitting)return;emitting=true;try{for(const cb of [...subs])cb(f)}finally{emitting=false}};g.onFrame(f=>{if(f&&(K(f.type)||F.has(f.type)))emit(f)});c.onFrame(f=>{if(f&&!F.has(f.type)&&!K(f.type))emit(f)});c.onConnection?.(()=>{if(c.connected){try{cp(hello)}catch{}}for(const cb of [...conns])cb(c.connected)});const postFn=f=>{const t=f&&f.type;if(t&&(P.has(t)||K(t))){try{return g.post(f)}catch{return cp(f)}}if(t&&B.has(t)){try{g.post(f)}catch{};return cp(f)}return cp(f)};const frameFn=cb=>{subs.add(cb);return()=>subs.delete(cb)};const connFn=cb=>{conns.add(cb);if(c.connected)setTimeout(()=>{if(conns.has(cb))try{cb(true)}catch{}},0);return()=>conns.delete(cb)};const closeFn=()=>{try{g.close()}catch{};return c.close()};const disposeFn=()=>{try{g.dispose()}catch{};return c.dispose?.()};const reconnectFn=()=>{try{g.reconnectNow?.()}catch{};return c.reconnectNow?.()};return new Proxy(c,{get(target,prop){if(prop==="post")return po??postFn;if(prop==="setHello")return g.setHello?g.setHello.bind(g):c.setHello;if(prop==="managed")return g.managed===!0||c.managed===!0;if(prop==="onFrame")return frameFn;if(prop==="onConnection")return connFn;if(prop==="close")return closeFn;if(prop==="dispose")return disposeFn;if(prop==="reconnectNow")return reconnectFn;return c[prop]},set(target,prop,value){if(prop==="post"){po=typeof value==="function"&&value!==postFn?value:null;return!0}target[prop]=value;return!0}})}
+HYB_FN_TEMPLATE = b"""function HYB(t,e,c){if(!t||!t.host)return c;if(!t.gatewayUrl){if(!t.collab)return c;const cp=c.post.bind(c),hello={type:"clientHello",remoteByChoice:!0};try{cp(hello)}catch{}let po=null;const postFn=f=>cp(f);c.onConnection?.(()=>{if(c.connected){try{cp(hello)}catch{}}});return new Proxy(c,{get(target,prop){if(prop==="post")return po??postFn;if(prop==="managed")return!0;return c[prop]},set(target,prop,value){if(prop==="post"){po=typeof value==="function"&&value!==postFn?value:null;return!0}target[prop]=value;return!0}})}const s=t.nodeId,i=t.grant??"",o=e&&e.gatewayTicket;const g=__GW__(t.gatewayUrl,{WebSocketImpl:e.WebSocketImpl,preamble:o?async()=>[{type:"gatewayAuth",token:await o(s),nodeId:s,wake:1,idleSleep:1,rebind:1}]:[{type:"gatewayAuth",token:i,nodeId:s,wake:1,idleSleep:1,rebind:1}],managed:!0});const P=new Set(["presenceUpdate","tasksenseFocus","watchTurnActivity","requestSessionAccess","answerSessionAccess","setSessionAccess","presenceKick","memberKeyUsage","getHostUsage","listMemberKeyUsage","watchAttention"]);const F=new Set(["presence","presenceKicked","turnActivity","sessionAccess","memberKeyUsage","hostUsage","attention"]);const C=new Set(["createMemberWorkspace","setWorkspaceMembers","setCloudSpace","setControlledSpace","setWorkspaceArchived","machineMemberRole","setMachineMemberRole","machineShared","machineUnshared","setMachineShare","memberWorkspace","workspaceMembers"]);const K=T=>typeof T=="string"&&(T.startsWith("chat")||T.startsWith("peer")||T==="listMessagingSessions"||C.has(T));const B=new Set(["ready","clientVisibility","setStreamCadence","setSettingsPush"]);const subs=new Set(),conns=new Set(),cp=c.post.bind(c);const hello={type:"clientHello",remoteByChoice:!0};try{cp(hello)}catch{}let po=null,emitting=false;const emit=f=>{if(emitting)return;emitting=true;try{for(const cb of [...subs])cb(f)}finally{emitting=false}};g.onFrame(f=>{if(f&&(K(f.type)||F.has(f.type)))emit(f)});c.onFrame(f=>{if(f&&!F.has(f.type)&&!K(f.type))emit(f)});c.onConnection?.(()=>{if(c.connected){try{cp(hello)}catch{}}for(const cb of [...conns])cb(c.connected)});const postFn=f=>{const t=f&&f.type;if(t&&(P.has(t)||K(t))){try{return g.post(f)}catch{return cp(f)}}if(t&&B.has(t)){try{g.post(f)}catch{};return cp(f)}return cp(f)};const frameFn=cb=>{subs.add(cb);return()=>subs.delete(cb)};const connFn=cb=>{conns.add(cb);if(c.connected)setTimeout(()=>{if(conns.has(cb))try{cb(true)}catch{}},0);return()=>conns.delete(cb)};const closeFn=()=>{try{g.close()}catch{};return c.close()};const disposeFn=()=>{try{g.dispose()}catch{};return c.dispose?.()};const reconnectFn=()=>{try{g.reconnectNow?.()}catch{};return c.reconnectNow?.()};return new Proxy(c,{get(target,prop){if(prop==="post")return po??postFn;if(prop==="setHello")return g.setHello?g.setHello.bind(g):c.setHello;if(prop==="managed")return g.managed===!0||c.managed===!0;if(prop==="onFrame")return frameFn;if(prop==="onConnection")return connFn;if(prop==="close")return closeFn;if(prop==="dispose")return disposeFn;if(prop==="reconnectNow")return reconnectFn;return c[prop]},set(target,prop,value){if(prop==="post"){po=typeof value==="function"&&value!==postFn?value:null;return!0}target[prop]=value;return!0}})}
 """
+
+
+HYB_FN = HYB_FN_TEMPLATE.replace(b"__GW__", b"Dt")  # standalone default
 
 
 def patch_hybrid_transport(asar: Asar) -> List[str]:
@@ -301,15 +304,21 @@ def patch_hybrid_transport(asar: Asar) -> List[str]:
         if not path.endswith((".js", ".mjs")):
             continue
         if (b't.gatewayUrl&&t.nodeId&&(t.grant||e.gatewayTicket)' in data
-                and b'client:Ss({host:t.host' in data):
+                and b'client:' in data and b'({host:t.host' in data):
             hits.append(path)
     if len(hits) != 1:
         raise PatchError("expected exactly one mirachannel transport dispatcher, found %d" % len(hits))
     path = hits[0]
     data = asar.contents[path]
+    client_m = re.search(rb'client:([A-Za-z_$][\w$]*)\(\{host:t\.host', data)
+    gw_m = re.search(rb'([A-Za-z_$][\w$]*)\(t\.gatewayUrl,\{WebSocketImpl', data)
+    if not client_m or not gw_m:
+        raise PatchError("could not identify the mirachannel transport helpers")
+    client_fn, gw_fn = client_m.group(1), gw_m.group(1)
     cond = b't.gatewayUrl&&t.nodeId&&(t.grant||e.gatewayTicket)'
     data = data.replace(cond, b't.gatewayUrl&&!t.host&&t.nodeId&&(t.grant||e.gatewayTicket)', 1)
-    data = data.replace(b'client:Ss({host:t.host', b'client:HYB(t,e,Ss({host:t.host', 1)
+    old_client = b'client:' + client_fn + b'({host:t.host'
+    data = data.replace(old_client, b'client:HYB(t,e,' + client_fn + b'({host:t.host', 1)
     old_grant = b'grant:t.grant,e2e:t.e2e'
     if old_grant not in data:
         raise PatchError("could not find the mirachannel grant field")
@@ -321,7 +330,7 @@ def patch_hybrid_transport(asar: Asar) -> List[str]:
     idx = data.rfind(b'export{')
     if idx < 0:
         raise PatchError("could not find the module export")
-    data = data[:idx] + HYB_FN + data[idx:]
+    data = data[:idx] + HYB_FN_TEMPLATE.replace(b"__GW__", gw_fn) + data[idx:]
     asar.contents[path] = data
     return [path]
 
